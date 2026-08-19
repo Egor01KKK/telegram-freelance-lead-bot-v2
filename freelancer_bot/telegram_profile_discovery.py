@@ -46,21 +46,21 @@ MAX_HIT_TEXT_LENGTH = 12000
 
 _ROLE_QUERY_TEMPLATES: dict[str, tuple[tuple[str, str, str, str], ...]] = {
     "ru": (
-        ("ROLE_DIRECT", "direct", "role_need", "нужен {term}"),
-        ("ROLE_DIRECT", "direct", "role_need", "ищу {term}"),
-        ("ROLE_DIRECT", "direct", "role_need", "ищем {term}"),
-        ("ROLE_REQUIRED", "direct", "role_need", "требуется {term}"),
-        ("ROLE_VACANCY", "vacancy", "role_need", "вакансия {term}"),
-        ("ROLE_PROJECT", "project", "role_need", "проект для {term}"),
+        ("ROLE_DIRECT", "direct", "role_need", "нужен специалист: {term}"),
+        ("ROLE_DIRECT", "direct", "role_need", "ищу исполнителя: {term}"),
+        ("ROLE_DIRECT", "direct", "role_need", "ищем специалиста: {term}"),
+        ("ROLE_REQUIRED", "direct", "role_need", "требуется специалист: {term}"),
+        ("ROLE_VACANCY", "vacancy", "role_need", "вакансия: {term}"),
+        ("ROLE_PROJECT", "project", "role_need", "проект: {term}"),
         (
             "ROLE_RECOMMENDATION",
             "recommendation",
             "role_need",
-            "посоветуйте {term}",
+            "посоветуйте исполнителя: {term}",
         ),
-        ("ROLE_CONTRACT", "contract", "role_need", "нужен подрядчик {term}"),
-        ("ROLE_DIRECT", "direct", "role_need", "ищу исполнителя {term}"),
-        ("ROLE_VACANCY", "vacancy", "role_need", "нужен специалист {term}"),
+        ("ROLE_CONTRACT", "contract", "role_need", "нужен подрядчик: {term}"),
+        ("ROLE_DIRECT", "direct", "role_need", "ищу специалиста: {term}"),
+        ("ROLE_VACANCY", "vacancy", "role_need", "нужен специалист: {term}"),
     ),
     "en": (
         ("ROLE_DIRECT", "direct", "role_need", "looking for {term}"),
@@ -87,13 +87,13 @@ _SERVICE_QUERY_TEMPLATES: dict[str, tuple[tuple[str, str, str, str], ...]] = {
             "SERVICE_DIRECT",
             "direct",
             "service_need",
-            "нужен специалист по {term}",
+            "нужен специалист: {term}",
         ),
         (
             "SERVICE_DIRECT",
             "direct",
             "service_need",
-            "ищу специалиста по {term}",
+            "ищу специалиста: {term}",
         ),
         (
             "SERVICE_DIRECT",
@@ -105,13 +105,13 @@ _SERVICE_QUERY_TEMPLATES: dict[str, tuple[tuple[str, str, str, str], ...]] = {
             "SERVICE_DIRECT",
             "direct",
             "service_need",
-            "нужен человек на {term}",
+            "нужен человек: {term}",
         ),
         (
             "SERVICE_DIRECT",
             "direct",
             "service_need",
-            "требуется помощь с {term}",
+            "нужна помощь: {term}",
         ),
         ("SERVICE_PROJECT", "project", "service_need", "проект: {term}"),
         ("SERVICE_VACANCY", "vacancy", "service_need", "вакансия: {term}"),
@@ -119,15 +119,15 @@ _SERVICE_QUERY_TEMPLATES: dict[str, tuple[tuple[str, str, str, str], ...]] = {
             "SERVICE_RECOMMENDATION",
             "recommendation",
             "service_need",
-            "посоветуйте специалиста по {term}",
+            "посоветуйте исполнителя: {term}",
         ),
         (
             "SERVICE_CONTRACT",
             "contract",
             "service_need",
-            "ищу подрядчика по {term}",
+            "ищу подрядчика: {term}",
         ),
-        ("SERVICE_DIRECT", "direct", "service_need", "нужно заказать {term}"),
+        ("SERVICE_DIRECT", "direct", "service_need", "заказать: {term}"),
     ),
     "en": (
         (
@@ -346,36 +346,39 @@ def build_telegram_profile_search_queries(
         ("skill", skills, _SERVICE_QUERY_TEMPLATES),
     )
 
-    # Reserve one direct query per populated profile field and language so
-    # mixed profiles retain role, service and skill signals under the cap.
-    for language in languages:
-        for group_name, terms, template_map in groups:
-            if not terms:
-                continue
-            family, angle, query_kind, template = template_map[language][0]
-            if group_name == "skill":
-                family = "SKILL_SERVICE"
-                query_kind = "skill_service_need"
-            if add_query(language, family, angle, query_kind, template, terms[0]):
-                return tuple(values)
+    # Reserve one direct query per populated profile field and compatible term
+    # language so mixed profiles retain role, service and skill signals under
+    # the cap without combining Russian templates with Latin-only terms (or
+    # English templates with Cyrillic terms).
+    for group_name, terms, template_map in groups:
+        if not terms:
+            continue
+        for term in terms:
+            for language in _term_languages(term, languages):
+                family, angle, query_kind, template = template_map[language][0]
+                if group_name == "skill":
+                    family = "SKILL_SERVICE"
+                    query_kind = "skill_service_need"
+                if add_query(language, family, angle, query_kind, template, term):
+                    return tuple(values)
 
     template_count = max(
         len(_ROLE_QUERY_TEMPLATES[language])
         for language in languages
     )
     for template_index in range(template_count):
-        for language in languages:
-            for group_name, terms, template_map in groups:
-                if not terms:
-                    continue
-                templates = template_map[language]
-                if template_index >= len(templates):
-                    continue
-                family, angle, query_kind, template = templates[template_index]
-                if group_name == "skill":
-                    family = "SKILL_SERVICE"
-                    query_kind = "skill_service_need"
-                for term in terms:
+        for group_name, terms, template_map in groups:
+            if not terms:
+                continue
+            for term in terms:
+                for language in _term_languages(term, languages):
+                    templates = template_map[language]
+                    if template_index >= len(templates):
+                        continue
+                    family, angle, query_kind, template = templates[template_index]
+                    if group_name == "skill":
+                        family = "SKILL_SERVICE"
+                        query_kind = "skill_service_need"
                     if add_query(
                         language,
                         family,
@@ -865,6 +868,18 @@ def _language_order(values: Sequence[Any]) -> tuple[str, ...]:
         if language not in result:
             result.append(language)
     return tuple(result) or ("en", "ru")
+
+
+def _term_languages(term: str, preferred_languages: Sequence[str]) -> tuple[str, ...]:
+    """Return compatible buyer-template languages for one profile term."""
+
+    has_cyrillic = any("а" <= char <= "я" for char in term.casefold())
+    has_latin = any("a" <= char <= "z" for char in term.casefold())
+    if has_cyrillic:
+        return ("ru",)
+    if has_latin:
+        return ("en",)
+    return tuple(preferred_languages)
 
 
 def _profile_terms(intent: Any, *field_names: str) -> tuple[str, ...]:

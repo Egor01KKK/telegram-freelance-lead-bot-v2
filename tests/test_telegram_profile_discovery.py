@@ -4,10 +4,20 @@ import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
 import unittest
+from uuid import uuid4
 
 from telethon.tl.types import Channel, User
 
 from freelancer_bot.discovery import DiscoveryRequest
+from freelancer_bot.persistence.search_profiles import (
+    SearchProfileConfirmationStatus,
+    SearchProfileRecord,
+)
+from freelancer_bot.profile_discovery import build_profile_discovery_intent
+from freelancer_bot.search_profiles import (
+    parse_search_profile,
+    parse_search_profile_preferences,
+)
 from freelancer_bot.telegram_profile_discovery import (
     TelegramGlobalSearchProvider,
     TelegramGlobalSearchPageCache,
@@ -16,6 +26,47 @@ from freelancer_bot.telegram_profile_discovery import (
 
 
 NOW = datetime(2026, 8, 16, 12, 0, tzinfo=timezone.utc)
+
+
+def _persisted_profile(
+    *,
+    roles: tuple[str, ...],
+    skills: tuple[str, ...],
+    categories: tuple[str, ...],
+    languages: tuple[str, ...] | None,
+    semantic_text: str,
+) -> SearchProfileRecord:
+    parsed = parse_search_profile(
+        roles=roles,
+        skills=skills,
+        categories=categories,
+        semantic_text=semantic_text,
+    )
+    preferences = parse_search_profile_preferences(
+        **({} if languages is None else {"languages": languages})
+    )
+    return SearchProfileRecord(
+        id=uuid4(),
+        user_id=uuid4(),
+        schema_version=parsed.schema_version,
+        parser_version=parsed.parser_version,
+        analysis_cache_id=None,
+        roles=parsed.roles,
+        skills=parsed.skills,
+        categories=parsed.categories,
+        semantic_text_original=parsed.semantic_text_original,
+        semantic_text_normalized=parsed.semantic_text_normalized,
+        preferences=preferences,
+        confirmation_status=SearchProfileConfirmationStatus.CONFIRMED,
+        revision=1,
+        confirmed_at=NOW,
+        is_active=True,
+        is_primary=True,
+        activated_at=NOW,
+        deactivated_at=None,
+        created_at=NOW,
+        updated_at=NOW,
+    )
 
 
 class _Governor:
@@ -110,6 +161,118 @@ class TelegramProfileDiscoveryTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             build_telegram_profile_search_queries(self._intent(), max_queries=21)
 
+    def test_real_search_profile_path_drives_profile_specific_queries(self):
+        fixtures = {
+            "video_editor": {
+                "roles": ("Video Editor",),
+                "skills": ("Premiere Pro", "After Effects"),
+                "categories": ("YouTube editing", "short-form video"),
+                "required": ("video editor", "youtube editing"),
+                "semantic_text": (
+                    "I am a Video Editor working on YouTube editing and short-form video."
+                ),
+            },
+            "product_designer": {
+                "roles": ("Product Designer", "UX/UI Designer"),
+                "skills": ("Figma", "user research"),
+                "categories": ("product design", "UX/UI design"),
+                "required": ("product designer", "product design"),
+                "semantic_text": (
+                    "I am a Product Designer focused on product design and UX/UI design."
+                ),
+            },
+            "copywriter": {
+                "roles": ("Copywriter",),
+                "skills": ("SEO writing", "editing"),
+                "categories": ("website copy", "email sequences"),
+                "required": ("copywriter", "website copy"),
+                "semantic_text": (
+                    "I am a Copywriter creating website copy and email sequences."
+                ),
+            },
+            "performance_marketer": {
+                "roles": ("Performance Marketer",),
+                "skills": ("analytics", "conversion tracking"),
+                "categories": ("paid ads", "performance campaigns"),
+                "required": ("performance marketer", "paid ads"),
+                "semantic_text": (
+                    "I am a Performance Marketer focused on paid ads and performance campaigns."
+                ),
+            },
+            "three_d_cgi": {
+                "roles": ("3D Artist", "CGI Artist"),
+                "skills": ("Blender", "rendering"),
+                "categories": ("3D modeling", "CGI rendering"),
+                "required": ("3d artist", "cgi rendering"),
+                "semantic_text": (
+                    "I am a 3D Artist creating 3D modeling and CGI rendering."
+                ),
+            },
+            "python_telegram": {
+                "roles": ("Python-разработчик",),
+                "skills": ("Python", "Telethon", "PostgreSQL"),
+                "categories": ("Telegram-боты", "парсеры"),
+                "required": ("python-разработчик", "telegram-боты"),
+                "semantic_text": (
+                    "Я Python-разработчик, делаю Telegram-боты и парсеры."
+                ),
+            },
+        }
+
+        for name, fixture in fixtures.items():
+            profile = _persisted_profile(
+                roles=fixture["roles"],
+                skills=fixture["skills"],
+                categories=fixture["categories"],
+                # This is the shape persisted by AI onboarding: optional
+                # language preferences are empty, so discovery infers the
+                # usable query languages from the normalized profile text.
+                languages=None,
+                semantic_text=fixture["semantic_text"],
+            )
+            intent = build_profile_discovery_intent(profile)
+            queries = build_telegram_profile_search_queries(intent, max_queries=20)
+            texts = tuple(query.text.casefold() for query in queries)
+
+            self.assertEqual(
+                intent.services,
+                fixture["categories"],
+                name,
+            )
+            self.assertLessEqual(len(queries), 20, name)
+            self.assertEqual(
+                len(texts),
+                len(set(texts)),
+                name,
+            )
+            for required in fixture["required"]:
+                self.assertTrue(
+                    any(required in text for text in texts),
+                    (name, required, texts),
+                )
+            if name != "python_telegram":
+                self.assertFalse(any("python" in text for text in texts), name)
+                self.assertFalse(any("telegram" in text for text in texts), name)
+                self.assertFalse(any("developer" in text for text in texts), name)
+            else:
+                self.assertTrue(any("python" in text for text in texts))
+                self.assertTrue(any("telegram" in text for text in texts))
+            if name == "video_editor":
+                self.assertFalse(any("video editor developer" in text for text in texts))
+
+            for term in fixture["required"]:
+                matching = [query for query in queries if term in query.text.casefold()]
+                expected_language = (
+                    "ru"
+                    if any("а" <= char <= "я" for char in term)
+                    else "en"
+                )
+                self.assertTrue(matching, (name, term))
+                self.assertTrue(
+                    all(query.language == expected_language for query in matching),
+                    (name, term, matching),
+                )
+
     def test_meaningful_format_terms_are_used_without_generic_work_type_noise(self):
         intent = SimpleNamespace(
             languages=("en",),
@@ -199,14 +362,17 @@ class TelegramProfileDiscoveryTest(unittest.IsolatedAsyncioTestCase):
                         marker in text
                         for marker in (
                             "нужен",
+                            "нужна",
                             "ищу",
                             "ищем",
                             "кто может",
                             "требуется",
+                            "vacancy",
                             "вакансия",
                             "проект",
                             "посоветуйте",
                             "looking for",
+                            "who can",
                             "need",
                             "hiring",
                             "needed",
@@ -226,25 +392,6 @@ class TelegramProfileDiscoveryTest(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(any("developer" in text for text in texts), name)
             if name == "video_editor":
                 self.assertFalse(any("video editor developer" in text for text in texts))
-
-    def test_profile_matrix_queries_are_printable_for_manual_quality_review(self):
-        fixtures = (
-            ("python_telegram", ("Python-разработчик",), ("Telegram-боты",)),
-            ("video_editor", ("Video Editor",), ("YouTube editing",)),
-            ("product_designer", ("Product Designer",), ("product design",)),
-            ("copywriter", ("Copywriter",), ("website copy",)),
-            ("performance_marketer", ("Performance Marketer",), ("paid ads",)),
-            ("three_d_cgi", ("3D Artist",), ("CGI rendering",)),
-        )
-        for name, roles, services in fixtures:
-            intent = SimpleNamespace(
-                roles=roles,
-                services=services,
-                skills=(),
-                industries=(),
-                languages=("en", "ru"),
-            )
-            print(name, [query.text for query in build_telegram_profile_search_queries(intent)])
 
     async def test_search_uses_own_chat_only_deduplicates_and_preserves_safe_lineage(self):
         client = _Client()
