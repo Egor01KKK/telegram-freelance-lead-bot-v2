@@ -428,19 +428,35 @@ class SearchProfileActivationIntegrationTest(unittest.IsolatedAsyncioTestCase):
                 )
             ).mappings().all()
 
+        self.assertGreater(len(topics), 0)
         self.assertLessEqual(len(topics), 20)
         self.assertEqual(len(chat_jobs), 2)
         self.assertEqual(legacy_jobs, [])
+        buyer_intent_markers = (
+            "looking for",
+            "need",
+            "hiring",
+            "needed",
+            "project:",
+            "vacancy:",
+            "who can handle",
+        )
+        profile_terms = (
+            "video editor",
+            "premiere pro",
+            "youtube editing",
+            "short-form video",
+        )
         self.assertTrue(
             all(
-                any(marker in topic["topic_text"].casefold() for marker in (
-                    "looking for",
-                    "need",
-                    "hiring",
-                    "needed",
-                    "project:",
-                    "vacancy:",
-                ))
+                any(
+                    marker in topic["topic_text"].casefold()
+                    for marker in buyer_intent_markers
+                )
+                and any(
+                    term in topic["topic_text"].casefold()
+                    for term in profile_terms
+                )
                 for topic in topics
             )
         )
