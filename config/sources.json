@@ -1,0 +1,107 @@
+[
+  {
+    "handle": "@freelansim_ru",
+    "title": "Хабр Фриланс",
+    "reason": "заказы по фрилансу и разработке",
+    "enabled": true,
+    "tags": ["freelance", "development", "russian"]
+  },
+  {
+    "handle": "@apibot_tg",
+    "title": "BotAPI [Фриланс]",
+    "reason": "узкая подборка заказов на Telegram-ботов; проверить username перед включением",
+    "enabled": false,
+    "tags": ["telegram", "bots", "unverified"]
+  },
+  {
+    "handle": "@digitaltender",
+    "title": "DIGITAL Tender",
+    "reason": "digital-заказы и разработка",
+    "enabled": true,
+    "tags": ["digital", "development", "russian"]
+  },
+  {
+    "handle": "@freelancetaverna",
+    "title": "Фриланс Таверна",
+    "reason": "удаленные задачи и заказы для разработчиков",
+    "enabled": true,
+    "tags": ["freelance", "development", "russian"]
+  },
+  {
+    "handle": "@frilans",
+    "title": "Фриланс | Удаленная работа",
+    "reason": "широкий фриланс-канал; шум режется фильтром",
+    "enabled": true,
+    "tags": ["freelance", "general", "russian"]
+  },
+  {
+    "handle": "@job_developer",
+    "title": "Фриланс для разработчиков",
+    "reason": "разработка и проектная удаленная работа",
+    "enabled": true,
+    "tags": ["development", "freelance", "russian"]
+  },
+  {
+    "handle": "@search_techspec",
+    "title": "Ищу Техспец",
+    "reason": "заказы для технических специалистов",
+    "enabled": true,
+    "tags": ["technical", "freelance", "russian"]
+  },
+  {
+    "handle": "@search_zakaz",
+    "title": "Ищу Заказы",
+    "reason": "агрегатор проектных заказов",
+    "enabled": true,
+    "tags": ["freelance", "general", "russian"]
+  },
+  {
+    "handle": "@FreeVacanciesIT",
+    "title": "IT Фриланс | Вакансии",
+    "reason": "IT-разовые и проектные задачи",
+    "enabled": true,
+    "tags": ["it", "freelance", "russian"]
+  },
+  {
+    "handle": "@freelance_dev_work",
+    "title": "Kwork разработка и IT",
+    "reason": "заказы по разработке и IT",
+    "enabled": true,
+    "tags": ["development", "kwork", "russian"]
+  },
+  {
+    "handle": "@do_it_order",
+    "title": "Do IT - фриланс заказы",
+    "reason": "агрегатор заказов по программированию; проверить username перед включением",
+    "enabled": false,
+    "tags": ["development", "freelance", "unverified"]
+  },
+  {
+    "handle": "@pixeltechspec",
+    "title": "Pixel | Заказы для Тех-спецов",
+    "reason": "проектные заказы для технических специалистов",
+    "enabled": true,
+    "tags": ["technical", "freelance", "russian"]
+  },
+  {
+    "handle": "@webfrl",
+    "title": "Web Freelance",
+    "reason": "web/fullstack-задачи, иногда боты и API",
+    "enabled": true,
+    "tags": ["web", "fullstack", "freelance"]
+  },
+  {
+    "handle": "@workayte",
+    "title": "Работа в ИТ",
+    "reason": "IT-вакансии и проектные задачи",
+    "enabled": true,
+    "tags": ["it", "freelance", "russian"]
+  },
+  {
+    "handle": "@FreelancehuntProjects",
+    "title": "Freelancehunt Projects",
+    "reason": "лента проектов с биржи Freelancehunt",
+    "enabled": true,
+    "tags": ["freelancehunt", "development", "multilingual"]
+  }
+]

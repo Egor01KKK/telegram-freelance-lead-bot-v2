@@ -1,0 +1,21 @@
+[project]
+name = "telegram-freelance-lead-bot"
+version = "0.1.0"
+description = "Telegram bot that monitors freelance channels and sends filtered leads."
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+license = "MIT"
+authors = [{ name = "Egor Andrienko" }]
+dependencies = [
+    "alembic>=1.18.5,<1.19",
+    "pydantic-settings>=2.14,<3",
+    "psycopg[binary]>=3.3.4,<3.4",
+    "sqlalchemy[asyncio]>=2.0.51,<2.1",
+    "telethon>=1.44,<1.45",
+]
+
+[project.urls]
+Homepage = "https://github.com/Egor01KKK/telegram-freelance-lead-bot"
+
+[tool.uv]
+required-version = "==0.12.2"

@@ -1,0 +1,4008 @@
+{
+  "schema_version": "opportunity_evaluation.v1",
+  "dataset_version": "synthetic-g10-t01.2026-08-15.v1",
+  "cases": [
+    {
+      "case_id": "g10.software_development.active_order.frontend",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000001",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000001,
+        "message_date": "2026-08-15T12:01:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000001",
+        "content": "Need a Frontend developer for a one-off paid order. Please deliver a clear result."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "one_off_order",
+        "category": "software_frontend",
+        "role_title": "Frontend developer",
+        "skills": [
+          "Frontend developer"
+        ],
+        "task_summary": "Deliver a one-off result as a Frontend developer",
+        "budget": {
+          "known": true,
+          "min": 500,
+          "max": 500,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.85,
+          "commercial_plausibility": 0.8,
+          "specificity": 0.8,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.software_development.vacancy.backend",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000002",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000002,
+        "message_date": "2026-08-15T12:02:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000002",
+        "content": "В штат ищем специалиста Backend developer на удалённую работу с оплатой за месяц."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.91,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "vacancy",
+        "category": "software_backend",
+        "role_title": "Backend developer",
+        "skills": [
+          "Backend developer"
+        ],
+        "task_summary": "Hire a Backend developer for a full-time role",
+        "budget": {
+          "known": true,
+          "min": 2000,
+          "max": 3000,
+          "currency": "USD",
+          "period": "month",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": true,
+          "part_time": false
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.9,
+          "commercial_plausibility": 0.9,
+          "specificity": 0.9,
+          "credibility": 0.85
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.software_development.project.mobile",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000003",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000003,
+        "message_date": "2026-08-15T12:03:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000003",
+        "content": "Looking for a Mobile developer for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "mobile_development",
+        "role_title": "Mobile developer",
+        "skills": [
+          "Mobile developer"
+        ],
+        "task_summary": "Complete a paid project as a Mobile developer",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.software_development.recommendation.telegram",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000004",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000004,
+        "message_date": "2026-08-15T12:04:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000004",
+        "content": "Посоветуйте проверенного специалиста Telegram bot developer для платной работы."
+      },
+      "parent": {
+        "raw_message_id": "20000000-0000-0000-0000-000000000004",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000003,
+        "message_date": "2026-08-15T12:03:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000003",
+        "content": "Клиенту нужен специалист Telegram bot developer для платного проекта."
+      },
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.78,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "recommendation",
+        "opportunity_type": "project",
+        "category": "telegram_automation",
+        "role_title": "Telegram bot developer",
+        "skills": [
+          "Telegram bot developer"
+        ],
+        "task_summary": "Recommend a Telegram bot developer for paid work",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.7,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.65,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.software_development.research.devops",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000005",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000005,
+        "message_date": "2026-08-15T12:05:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000005",
+        "content": "We need paid research and consultation from a DevOps engineer to compare approaches."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.75,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "research",
+        "opportunity_type": "consultation",
+        "category": "devops",
+        "role_title": "DevOps engineer",
+        "skills": [
+          "DevOps engineer"
+        ],
+        "task_summary": "Compare approaches with a DevOps engineer",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.72,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.7,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.software_development.seller_promotion.ai",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000006",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000006,
+        "message_date": "2026-08-15T12:06:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000006",
+        "content": "Я специалист AI engineer и беру новые заказы в этом месяце."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.93,
+        "market_direction": "specialist_to_buyer",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "ai_engineering",
+        "role_title": "AI engineer",
+        "skills": [
+          "AI engineer"
+        ],
+        "task_summary": "Offer AI engineer services",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.4,
+          "credibility": 0.7
+        },
+        "red_flags": [
+          "seller_self_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.software_development.ad.automation",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000007",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000007,
+        "message_date": "2026-08-15T12:07:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000007",
+        "content": "Advertisement: our Automation engineer service is now available with a launch discount."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "business_process_automation",
+        "role_title": "Automation engineer",
+        "skills": [
+          "Automation engineer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "advertisement"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.software_development.course.frontend",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000008",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000008,
+        "message_date": "2026-08-15T12:08:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000008",
+        "content": "Курс: освоить профессию Frontend developer за четыре недели. Идёт набор."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "software_frontend",
+        "role_title": "Frontend developer",
+        "skills": [
+          "Frontend developer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.3,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "course_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.software_development.discussion.backend",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000009",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000009,
+        "message_date": "2026-08-15T12:09:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000009",
+        "content": "Discussion: what is the best way to collaborate with a Backend developer?"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.88,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "software_backend",
+        "role_title": "Backend developer",
+        "skills": [
+          "Backend developer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.2,
+          "specificity": 0.4,
+          "credibility": 0.65
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.software_development.spam_scam.mobile",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000010",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000010,
+        "message_date": "2026-08-15T12:10:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000010",
+        "content": "Гарантированный доход: заплатите заранее и сразу получите работу Mobile developer."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.96,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "mobile_development",
+        "role_title": "Mobile developer",
+        "skills": [
+          "Mobile developer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0,
+          "specificity": 0.1,
+          "credibility": 0.1
+        },
+        "red_flags": [
+          "spam",
+          "scam"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.software_development.ambiguous.telegram",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000011",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000011,
+        "message_date": "2026-08-15T12:11:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000011",
+        "content": "Maybe someone knows a Telegram bot developer; I am only exploring options for now."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.65,
+        "market_direction": "unknown",
+        "intent_stage": "weak",
+        "opportunity_type": "unknown",
+        "category": "telegram_automation",
+        "role_title": "Telegram bot developer",
+        "skills": [
+          "Telegram bot developer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.2,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.2,
+          "credibility": 0.4
+        },
+        "red_flags": [
+          "ambiguous_intent"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.software_development.duplicate.mobile",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000012",
+        "source_id": 10,
+        "external_source_id": "username:g10_dev",
+        "external_message_id": 1000012,
+        "message_date": "2026-08-15T12:12:00.000Z",
+        "message_url": "https://t.me/g10_dev/1000012",
+        "content": "Looking for a Mobile developer for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "mobile_development",
+        "role_title": "Mobile developer",
+        "skills": [
+          "Mobile developer"
+        ],
+        "task_summary": "Complete a paid project as a Mobile developer",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.design.active_order.product",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000013",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100013,
+        "message_date": "2026-08-15T12:13:00.000Z",
+        "message_url": "https://t.me/g10_design/1100013",
+        "content": "Need a Product designer for a one-off paid order. Please deliver a clear result."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "one_off_order",
+        "category": "product_design",
+        "role_title": "Product designer",
+        "skills": [
+          "Product designer"
+        ],
+        "task_summary": "Deliver a one-off result as a Product designer",
+        "budget": {
+          "known": true,
+          "min": 500,
+          "max": 500,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.85,
+          "commercial_plausibility": 0.8,
+          "specificity": 0.8,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.design.vacancy.ux_ui",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000014",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100014,
+        "message_date": "2026-08-15T12:14:00.000Z",
+        "message_url": "https://t.me/g10_design/1100014",
+        "content": "В штат ищем специалиста UX/UI designer на удалённую работу с оплатой за месяц."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.91,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "vacancy",
+        "category": "ux_ui_design",
+        "role_title": "UX/UI designer",
+        "skills": [
+          "UX/UI designer"
+        ],
+        "task_summary": "Hire a UX/UI designer for a full-time role",
+        "budget": {
+          "known": true,
+          "min": 2000,
+          "max": 3000,
+          "currency": "USD",
+          "period": "month",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": true,
+          "part_time": false
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.9,
+          "commercial_plausibility": 0.9,
+          "specificity": 0.9,
+          "credibility": 0.85
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.design.project.graphic",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000015",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100015,
+        "message_date": "2026-08-15T12:15:00.000Z",
+        "message_url": "https://t.me/g10_design/1100015",
+        "content": "Looking for a Graphic designer for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "graphic_design",
+        "role_title": "Graphic designer",
+        "skills": [
+          "Graphic designer"
+        ],
+        "task_summary": "Complete a paid project as a Graphic designer",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.design.recommendation.branding",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000016",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100016,
+        "message_date": "2026-08-15T12:16:00.000Z",
+        "message_url": "https://t.me/g10_design/1100016",
+        "content": "Посоветуйте проверенного специалиста Brand designer для платной работы."
+      },
+      "parent": {
+        "raw_message_id": "20000000-0000-0000-0000-000000000016",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100015,
+        "message_date": "2026-08-15T12:15:00.000Z",
+        "message_url": "https://t.me/g10_design/1100015",
+        "content": "Клиенту нужен специалист Brand designer для платного проекта."
+      },
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.78,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "recommendation",
+        "opportunity_type": "project",
+        "category": "branding_design",
+        "role_title": "Brand designer",
+        "skills": [
+          "Brand designer"
+        ],
+        "task_summary": "Recommend a Brand designer for paid work",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.7,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.65,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.design.research.3d",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000017",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100017,
+        "message_date": "2026-08-15T12:17:00.000Z",
+        "message_url": "https://t.me/g10_design/1100017",
+        "content": "We need paid research and consultation from a 3D designer to compare approaches."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.75,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "research",
+        "opportunity_type": "consultation",
+        "category": "3d_design",
+        "role_title": "3D designer",
+        "skills": [
+          "3D designer"
+        ],
+        "task_summary": "Compare approaches with a 3D designer",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.72,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.7,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.design.seller_promotion.motion",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000018",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100018,
+        "message_date": "2026-08-15T12:18:00.000Z",
+        "message_url": "https://t.me/g10_design/1100018",
+        "content": "Я специалист Motion designer и беру новые заказы в этом месяце."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.93,
+        "market_direction": "specialist_to_buyer",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "motion_design",
+        "role_title": "Motion designer",
+        "skills": [
+          "Motion designer"
+        ],
+        "task_summary": "Offer Motion designer services",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.4,
+          "credibility": 0.7
+        },
+        "red_flags": [
+          "seller_self_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.design.ad.service",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000019",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100019,
+        "message_date": "2026-08-15T12:19:00.000Z",
+        "message_url": "https://t.me/g10_design/1100019",
+        "content": "Advertisement: our Service designer service is now available with a launch discount."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "service_design",
+        "role_title": "Service designer",
+        "skills": [
+          "Service designer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "advertisement"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.design.course.product",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000020",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100020,
+        "message_date": "2026-08-15T12:20:00.000Z",
+        "message_url": "https://t.me/g10_design/1100020",
+        "content": "Курс: освоить профессию Product designer за четыре недели. Идёт набор."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "product_design",
+        "role_title": "Product designer",
+        "skills": [
+          "Product designer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.3,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "course_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.design.discussion.ux_ui",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000021",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100021,
+        "message_date": "2026-08-15T12:21:00.000Z",
+        "message_url": "https://t.me/g10_design/1100021",
+        "content": "Discussion: what is the best way to collaborate with a UX/UI designer?"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.88,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "ux_ui_design",
+        "role_title": "UX/UI designer",
+        "skills": [
+          "UX/UI designer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.2,
+          "specificity": 0.4,
+          "credibility": 0.65
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.design.spam_scam.graphic",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000022",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100022,
+        "message_date": "2026-08-15T12:22:00.000Z",
+        "message_url": "https://t.me/g10_design/1100022",
+        "content": "Гарантированный доход: заплатите заранее и сразу получите работу Graphic designer."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.96,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "graphic_design",
+        "role_title": "Graphic designer",
+        "skills": [
+          "Graphic designer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0,
+          "specificity": 0.1,
+          "credibility": 0.1
+        },
+        "red_flags": [
+          "spam",
+          "scam"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.design.ambiguous.branding",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000023",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100023,
+        "message_date": "2026-08-15T12:23:00.000Z",
+        "message_url": "https://t.me/g10_design/1100023",
+        "content": "Maybe someone knows a Brand designer; I am only exploring options for now."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.65,
+        "market_direction": "unknown",
+        "intent_stage": "weak",
+        "opportunity_type": "unknown",
+        "category": "branding_design",
+        "role_title": "Brand designer",
+        "skills": [
+          "Brand designer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.2,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.2,
+          "credibility": 0.4
+        },
+        "red_flags": [
+          "ambiguous_intent"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.design.duplicate.graphic",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000024",
+        "source_id": 11,
+        "external_source_id": "username:g10_design",
+        "external_message_id": 1100024,
+        "message_date": "2026-08-15T12:24:00.000Z",
+        "message_url": "https://t.me/g10_design/1100024",
+        "content": "Looking for a Graphic designer for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "graphic_design",
+        "role_title": "Graphic designer",
+        "skills": [
+          "Graphic designer"
+        ],
+        "task_summary": "Complete a paid project as a Graphic designer",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.marketing.active_order.smm",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000025",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200025,
+        "message_date": "2026-08-15T12:25:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200025",
+        "content": "Need a SMM manager for a one-off paid order. Please deliver a clear result."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "one_off_order",
+        "category": "smm",
+        "role_title": "SMM manager",
+        "skills": [
+          "SMM manager"
+        ],
+        "task_summary": "Deliver a one-off result as a SMM manager",
+        "budget": {
+          "known": true,
+          "min": 500,
+          "max": 500,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.85,
+          "commercial_plausibility": 0.8,
+          "specificity": 0.8,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.marketing.vacancy.performance",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000026",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200026,
+        "message_date": "2026-08-15T12:26:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200026",
+        "content": "В штат ищем специалиста Performance marketer на удалённую работу с оплатой за месяц."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.91,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "vacancy",
+        "category": "performance_marketing",
+        "role_title": "Performance marketer",
+        "skills": [
+          "Performance marketer"
+        ],
+        "task_summary": "Hire a Performance marketer for a full-time role",
+        "budget": {
+          "known": true,
+          "min": 2000,
+          "max": 3000,
+          "currency": "USD",
+          "period": "month",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": true,
+          "part_time": false
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.9,
+          "commercial_plausibility": 0.9,
+          "specificity": 0.9,
+          "credibility": 0.85
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.marketing.project.seo",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000027",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200027,
+        "message_date": "2026-08-15T12:27:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200027",
+        "content": "Looking for a SEO specialist for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "seo",
+        "role_title": "SEO specialist",
+        "skills": [
+          "SEO specialist"
+        ],
+        "task_summary": "Complete a paid project as a SEO specialist",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.marketing.recommendation.content",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000028",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200028,
+        "message_date": "2026-08-15T12:28:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200028",
+        "content": "Посоветуйте проверенного специалиста Content marketer для платной работы."
+      },
+      "parent": {
+        "raw_message_id": "20000000-0000-0000-0000-000000000028",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200027,
+        "message_date": "2026-08-15T12:27:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200027",
+        "content": "Клиенту нужен специалист Content marketer для платного проекта."
+      },
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.78,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "recommendation",
+        "opportunity_type": "project",
+        "category": "content_marketing",
+        "role_title": "Content marketer",
+        "skills": [
+          "Content marketer"
+        ],
+        "task_summary": "Recommend a Content marketer for paid work",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.7,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.65,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.marketing.research.crm",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000029",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200029,
+        "message_date": "2026-08-15T12:29:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200029",
+        "content": "We need paid research and consultation from a CRM marketer to compare approaches."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.75,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "research",
+        "opportunity_type": "consultation",
+        "category": "crm_marketing",
+        "role_title": "CRM marketer",
+        "skills": [
+          "CRM marketer"
+        ],
+        "task_summary": "Compare approaches with a CRM marketer",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.72,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.7,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.marketing.seller_promotion.growth",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000030",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200030,
+        "message_date": "2026-08-15T12:30:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200030",
+        "content": "Я специалист Growth marketer и беру новые заказы в этом месяце."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.93,
+        "market_direction": "specialist_to_buyer",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "growth_marketing",
+        "role_title": "Growth marketer",
+        "skills": [
+          "Growth marketer"
+        ],
+        "task_summary": "Offer Growth marketer services",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.4,
+          "credibility": 0.7
+        },
+        "red_flags": [
+          "seller_self_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.marketing.ad.analytics",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000031",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200031,
+        "message_date": "2026-08-15T12:31:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200031",
+        "content": "Advertisement: our Marketing analyst service is now available with a launch discount."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "marketing_analytics",
+        "role_title": "Marketing analyst",
+        "skills": [
+          "Marketing analyst"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "advertisement"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.marketing.course.smm",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000032",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200032,
+        "message_date": "2026-08-15T12:32:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200032",
+        "content": "Курс: освоить профессию SMM manager за четыре недели. Идёт набор."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "smm",
+        "role_title": "SMM manager",
+        "skills": [
+          "SMM manager"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.3,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "course_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.marketing.discussion.performance",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000033",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200033,
+        "message_date": "2026-08-15T12:33:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200033",
+        "content": "Discussion: what is the best way to collaborate with a Performance marketer?"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.88,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "performance_marketing",
+        "role_title": "Performance marketer",
+        "skills": [
+          "Performance marketer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.2,
+          "specificity": 0.4,
+          "credibility": 0.65
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.marketing.spam_scam.seo",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000034",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200034,
+        "message_date": "2026-08-15T12:34:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200034",
+        "content": "Гарантированный доход: заплатите заранее и сразу получите работу SEO specialist."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.96,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "seo",
+        "role_title": "SEO specialist",
+        "skills": [
+          "SEO specialist"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0,
+          "specificity": 0.1,
+          "credibility": 0.1
+        },
+        "red_flags": [
+          "spam",
+          "scam"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.marketing.ambiguous.content",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000035",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200035,
+        "message_date": "2026-08-15T12:35:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200035",
+        "content": "Maybe someone knows a Content marketer; I am only exploring options for now."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.65,
+        "market_direction": "unknown",
+        "intent_stage": "weak",
+        "opportunity_type": "unknown",
+        "category": "content_marketing",
+        "role_title": "Content marketer",
+        "skills": [
+          "Content marketer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.2,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.2,
+          "credibility": 0.4
+        },
+        "red_flags": [
+          "ambiguous_intent"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.marketing.duplicate.seo",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000036",
+        "source_id": 12,
+        "external_source_id": "username:g10_marketing",
+        "external_message_id": 1200036,
+        "message_date": "2026-08-15T12:36:00.000Z",
+        "message_url": "https://t.me/g10_marketing/1200036",
+        "content": "Looking for a SEO specialist for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "seo",
+        "role_title": "SEO specialist",
+        "skills": [
+          "SEO specialist"
+        ],
+        "task_summary": "Complete a paid project as a SEO specialist",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.creator_content.active_order.editing",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000037",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300037,
+        "message_date": "2026-08-15T12:37:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300037",
+        "content": "Need a Video editor for a one-off paid order. Please deliver a clear result."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "one_off_order",
+        "category": "video_editing",
+        "role_title": "Video editor",
+        "skills": [
+          "Video editor"
+        ],
+        "task_summary": "Deliver a one-off result as a Video editor",
+        "budget": {
+          "known": true,
+          "min": 500,
+          "max": 500,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.85,
+          "commercial_plausibility": 0.8,
+          "specificity": 0.8,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.creator_content.vacancy.motion",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000038",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300038,
+        "message_date": "2026-08-15T12:38:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300038",
+        "content": "В штат ищем специалиста Motion graphics artist на удалённую работу с оплатой за месяц."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.91,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "vacancy",
+        "category": "creator_motion",
+        "role_title": "Motion graphics artist",
+        "skills": [
+          "Motion graphics artist"
+        ],
+        "task_summary": "Hire a Motion graphics artist for a full-time role",
+        "budget": {
+          "known": true,
+          "min": 2000,
+          "max": 3000,
+          "currency": "USD",
+          "period": "month",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": true,
+          "part_time": false
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.9,
+          "commercial_plausibility": 0.9,
+          "specificity": 0.9,
+          "credibility": 0.85
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.creator_content.project.ugc",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000039",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300039,
+        "message_date": "2026-08-15T12:39:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300039",
+        "content": "Looking for a UGC creator for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "ugc_creation",
+        "role_title": "UGC creator",
+        "skills": [
+          "UGC creator"
+        ],
+        "task_summary": "Complete a paid project as a UGC creator",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.creator_content.recommendation.scripts",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000040",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300040,
+        "message_date": "2026-08-15T12:40:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300040",
+        "content": "Посоветуйте проверенного специалиста Scriptwriter для платной работы."
+      },
+      "parent": {
+        "raw_message_id": "20000000-0000-0000-0000-000000000040",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300039,
+        "message_date": "2026-08-15T12:39:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300039",
+        "content": "Клиенту нужен специалист Scriptwriter для платного проекта."
+      },
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.78,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "recommendation",
+        "opportunity_type": "project",
+        "category": "scriptwriting",
+        "role_title": "Scriptwriter",
+        "skills": [
+          "Scriptwriter"
+        ],
+        "task_summary": "Recommend a Scriptwriter for paid work",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.7,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.65,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.creator_content.research.thumbnails",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000041",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300041,
+        "message_date": "2026-08-15T12:41:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300041",
+        "content": "We need paid research and consultation from a Thumbnail designer to compare approaches."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.75,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "research",
+        "opportunity_type": "consultation",
+        "category": "thumbnail_design",
+        "role_title": "Thumbnail designer",
+        "skills": [
+          "Thumbnail designer"
+        ],
+        "task_summary": "Compare approaches with a Thumbnail designer",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.72,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.7,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.creator_content.seller_promotion.production",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000042",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300042,
+        "message_date": "2026-08-15T12:42:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300042",
+        "content": "Я специалист Content producer и беру новые заказы в этом месяце."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.93,
+        "market_direction": "specialist_to_buyer",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "content_production",
+        "role_title": "Content producer",
+        "skills": [
+          "Content producer"
+        ],
+        "task_summary": "Offer Content producer services",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.4,
+          "credibility": 0.7
+        },
+        "red_flags": [
+          "seller_self_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.creator_content.ad.podcast",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000043",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300043,
+        "message_date": "2026-08-15T12:43:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300043",
+        "content": "Advertisement: our Podcast producer service is now available with a launch discount."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "podcast_production",
+        "role_title": "Podcast producer",
+        "skills": [
+          "Podcast producer"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "advertisement"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.creator_content.course.editing",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000044",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300044,
+        "message_date": "2026-08-15T12:44:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300044",
+        "content": "Курс: освоить профессию Video editor за четыре недели. Идёт набор."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "video_editing",
+        "role_title": "Video editor",
+        "skills": [
+          "Video editor"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.3,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "course_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.creator_content.discussion.motion",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000045",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300045,
+        "message_date": "2026-08-15T12:45:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300045",
+        "content": "Discussion: what is the best way to collaborate with a Motion graphics artist?"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.88,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "creator_motion",
+        "role_title": "Motion graphics artist",
+        "skills": [
+          "Motion graphics artist"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.2,
+          "specificity": 0.4,
+          "credibility": 0.65
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.creator_content.spam_scam.ugc",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000046",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300046,
+        "message_date": "2026-08-15T12:46:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300046",
+        "content": "Гарантированный доход: заплатите заранее и сразу получите работу UGC creator."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.96,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "ugc_creation",
+        "role_title": "UGC creator",
+        "skills": [
+          "UGC creator"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0,
+          "specificity": 0.1,
+          "credibility": 0.1
+        },
+        "red_flags": [
+          "spam",
+          "scam"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.creator_content.ambiguous.scripts",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000047",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300047,
+        "message_date": "2026-08-15T12:47:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300047",
+        "content": "Maybe someone knows a Scriptwriter; I am only exploring options for now."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.65,
+        "market_direction": "unknown",
+        "intent_stage": "weak",
+        "opportunity_type": "unknown",
+        "category": "scriptwriting",
+        "role_title": "Scriptwriter",
+        "skills": [
+          "Scriptwriter"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.2,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.2,
+          "credibility": 0.4
+        },
+        "red_flags": [
+          "ambiguous_intent"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.creator_content.duplicate.ugc",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000048",
+        "source_id": 13,
+        "external_source_id": "username:g10_creator",
+        "external_message_id": 1300048,
+        "message_date": "2026-08-15T12:48:00.000Z",
+        "message_url": "https://t.me/g10_creator/1300048",
+        "content": "Looking for a UGC creator for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "ugc_creation",
+        "role_title": "UGC creator",
+        "skills": [
+          "UGC creator"
+        ],
+        "task_summary": "Complete a paid project as a UGC creator",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.operations_business.active_order.sales",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000049",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400049,
+        "message_date": "2026-08-15T12:49:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400049",
+        "content": "Need a Sales manager for a one-off paid order. Please deliver a clear result."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "one_off_order",
+        "category": "sales",
+        "role_title": "Sales manager",
+        "skills": [
+          "Sales manager"
+        ],
+        "task_summary": "Deliver a one-off result as a Sales manager",
+        "budget": {
+          "known": true,
+          "min": 500,
+          "max": 500,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.85,
+          "commercial_plausibility": 0.8,
+          "specificity": 0.8,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.operations_business.vacancy.pm",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000050",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400050,
+        "message_date": "2026-08-15T12:50:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400050",
+        "content": "В штат ищем специалиста Project manager на удалённую работу с оплатой за месяц."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.91,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "vacancy",
+        "category": "project_management",
+        "role_title": "Project manager",
+        "skills": [
+          "Project manager"
+        ],
+        "task_summary": "Hire a Project manager for a full-time role",
+        "budget": {
+          "known": true,
+          "min": 2000,
+          "max": 3000,
+          "currency": "USD",
+          "period": "month",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": true,
+          "part_time": false
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.9,
+          "commercial_plausibility": 0.9,
+          "specificity": 0.9,
+          "credibility": 0.85
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.operations_business.project.operations",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000051",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400051,
+        "message_date": "2026-08-15T12:51:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400051",
+        "content": "Looking for a Operations manager for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "operations",
+        "role_title": "Operations manager",
+        "skills": [
+          "Operations manager"
+        ],
+        "task_summary": "Complete a paid project as a Operations manager",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.operations_business.recommendation.assistant",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000052",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400052,
+        "message_date": "2026-08-15T12:52:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400052",
+        "content": "Посоветуйте проверенного специалиста Executive assistant для платной работы."
+      },
+      "parent": {
+        "raw_message_id": "20000000-0000-0000-0000-000000000052",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400051,
+        "message_date": "2026-08-15T12:51:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400051",
+        "content": "Клиенту нужен специалист Executive assistant для платного проекта."
+      },
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.78,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "recommendation",
+        "opportunity_type": "project",
+        "category": "executive_assistance",
+        "role_title": "Executive assistant",
+        "skills": [
+          "Executive assistant"
+        ],
+        "task_summary": "Recommend a Executive assistant for paid work",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.7,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.65,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.operations_business.research.recruiting",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000053",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400053,
+        "message_date": "2026-08-15T12:53:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400053",
+        "content": "We need paid research and consultation from a Recruiter to compare approaches."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.75,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "research",
+        "opportunity_type": "consultation",
+        "category": "recruiting",
+        "role_title": "Recruiter",
+        "skills": [
+          "Recruiter"
+        ],
+        "task_summary": "Compare approaches with a Recruiter",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.72,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.7,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.operations_business.seller_promotion.analytics",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000054",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400054,
+        "message_date": "2026-08-15T12:54:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400054",
+        "content": "Я специалист Business analyst и беру новые заказы в этом месяце."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.93,
+        "market_direction": "specialist_to_buyer",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "business_analytics",
+        "role_title": "Business analyst",
+        "skills": [
+          "Business analyst"
+        ],
+        "task_summary": "Offer Business analyst services",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.4,
+          "credibility": 0.7
+        },
+        "red_flags": [
+          "seller_self_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.operations_business.ad.procurement",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000055",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400055,
+        "message_date": "2026-08-15T12:55:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400055",
+        "content": "Advertisement: our Procurement specialist service is now available with a launch discount."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "procurement",
+        "role_title": "Procurement specialist",
+        "skills": [
+          "Procurement specialist"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "advertisement"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.operations_business.course.sales",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000056",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400056,
+        "message_date": "2026-08-15T12:56:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400056",
+        "content": "Курс: освоить профессию Sales manager за четыре недели. Идёт набор."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "sales",
+        "role_title": "Sales manager",
+        "skills": [
+          "Sales manager"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.3,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "course_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.operations_business.discussion.pm",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000057",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400057,
+        "message_date": "2026-08-15T12:57:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400057",
+        "content": "Discussion: what is the best way to collaborate with a Project manager?"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.88,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "project_management",
+        "role_title": "Project manager",
+        "skills": [
+          "Project manager"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.2,
+          "specificity": 0.4,
+          "credibility": 0.65
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.operations_business.spam_scam.operations",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000058",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400058,
+        "message_date": "2026-08-15T12:58:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400058",
+        "content": "Гарантированный доход: заплатите заранее и сразу получите работу Operations manager."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.96,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "operations",
+        "role_title": "Operations manager",
+        "skills": [
+          "Operations manager"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0,
+          "specificity": 0.1,
+          "credibility": 0.1
+        },
+        "red_flags": [
+          "spam",
+          "scam"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.operations_business.ambiguous.assistant",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000059",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400059,
+        "message_date": "2026-08-15T12:59:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400059",
+        "content": "Maybe someone knows a Executive assistant; I am only exploring options for now."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.65,
+        "market_direction": "unknown",
+        "intent_stage": "weak",
+        "opportunity_type": "unknown",
+        "category": "executive_assistance",
+        "role_title": "Executive assistant",
+        "skills": [
+          "Executive assistant"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.2,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.2,
+          "credibility": 0.4
+        },
+        "red_flags": [
+          "ambiguous_intent"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.operations_business.duplicate.operations",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000060",
+        "source_id": 14,
+        "external_source_id": "username:g10_operations",
+        "external_message_id": 1400060,
+        "message_date": "2026-08-15T13:00:00.000Z",
+        "message_url": "https://t.me/g10_operations/1400060",
+        "content": "Looking for a Operations manager for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "operations",
+        "role_title": "Operations manager",
+        "skills": [
+          "Operations manager"
+        ],
+        "task_summary": "Complete a paid project as a Operations manager",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.active_order.data_science",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000061",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500061,
+        "message_date": "2026-08-15T13:01:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500061",
+        "content": "Need a Data scientist for a one-off paid order. Please deliver a clear result."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "one_off_order",
+        "category": "data_science",
+        "role_title": "Data scientist",
+        "skills": [
+          "Data scientist"
+        ],
+        "task_summary": "Deliver a one-off result as a Data scientist",
+        "budget": {
+          "known": true,
+          "min": 500,
+          "max": 500,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.85,
+          "commercial_plausibility": 0.8,
+          "specificity": 0.8,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.vacancy.research",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000062",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500062,
+        "message_date": "2026-08-15T13:02:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500062",
+        "content": "В штат ищем специалиста User researcher на удалённую работу с оплатой за месяц."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.91,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "vacancy",
+        "category": "user_research",
+        "role_title": "User researcher",
+        "skills": [
+          "User researcher"
+        ],
+        "task_summary": "Hire a User researcher for a full-time role",
+        "budget": {
+          "known": true,
+          "min": 2000,
+          "max": 3000,
+          "currency": "USD",
+          "period": "month",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": true,
+          "part_time": false
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.9,
+          "commercial_plausibility": 0.9,
+          "specificity": 0.9,
+          "credibility": 0.85
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.project.education",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000063",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500063,
+        "message_date": "2026-08-15T13:03:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500063",
+        "content": "Looking for a Online educator for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "education",
+        "role_title": "Online educator",
+        "skills": [
+          "Online educator"
+        ],
+        "task_summary": "Complete a paid project as a Online educator",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.recommendation.translation",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000064",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500064,
+        "message_date": "2026-08-15T13:04:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500064",
+        "content": "Посоветуйте проверенного специалиста Translator для платной работы."
+      },
+      "parent": {
+        "raw_message_id": "20000000-0000-0000-0000-000000000064",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500063,
+        "message_date": "2026-08-15T13:03:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500063",
+        "content": "Клиенту нужен специалист Translator для платного проекта."
+      },
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.78,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "recommendation",
+        "opportunity_type": "project",
+        "category": "translation",
+        "role_title": "Translator",
+        "skills": [
+          "Translator"
+        ],
+        "task_summary": "Recommend a Translator for paid work",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.7,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.65,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.research.legal",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000065",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500065,
+        "message_date": "2026-08-15T13:05:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500065",
+        "content": "We need paid research and consultation from a Legal specialist to compare approaches."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.75,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "research",
+        "opportunity_type": "consultation",
+        "category": "legal_services",
+        "role_title": "Legal specialist",
+        "skills": [
+          "Legal specialist"
+        ],
+        "task_summary": "Compare approaches with a Legal specialist",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": true
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.72,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.7,
+          "credibility": 0.7
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.seller_promotion.finance",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000066",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500066,
+        "message_date": "2026-08-15T13:06:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500066",
+        "content": "Я специалист Financial analyst и беру новые заказы в этом месяце."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.93,
+        "market_direction": "specialist_to_buyer",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "finance",
+        "role_title": "Financial analyst",
+        "skills": [
+          "Financial analyst"
+        ],
+        "task_summary": "Offer Financial analyst services",
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.75,
+          "specificity": 0.4,
+          "credibility": 0.7
+        },
+        "red_flags": [
+          "seller_self_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.ad.architecture",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000067",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500067,
+        "message_date": "2026-08-15T13:07:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500067",
+        "content": "Advertisement: our Architect service is now available with a launch discount."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "architecture",
+        "role_title": "Architect",
+        "skills": [
+          "Architect"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "advertisement"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.course.data_science",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000068",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500068,
+        "message_date": "2026-08-15T13:08:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500068",
+        "content": "Курс: освоить профессию Data scientist за четыре недели. Идёт набор."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.94,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "data_science",
+        "role_title": "Data scientist",
+        "skills": [
+          "Data scientist"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.3,
+          "specificity": 0.5,
+          "credibility": 0.5
+        },
+        "red_flags": [
+          "course_promotion"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.discussion.research",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000069",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500069,
+        "message_date": "2026-08-15T13:09:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500069",
+        "content": "Discussion: what is the best way to collaborate with a User researcher?"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.88,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "user_research",
+        "role_title": "User researcher",
+        "skills": [
+          "User researcher"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0.2,
+          "specificity": 0.4,
+          "credibility": 0.65
+        },
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.spam_scam.education",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000070",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500070,
+        "message_date": "2026-08-15T13:10:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500070",
+        "content": "Гарантированный доход: заплатите заранее и сразу получите работу Online educator."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.96,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "education",
+        "role_title": "Online educator",
+        "skills": [
+          "Online educator"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "ru",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0,
+          "commercial_plausibility": 0,
+          "specificity": 0.1,
+          "credibility": 0.1
+        },
+        "red_flags": [
+          "spam",
+          "scam"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.ambiguous.translation",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000071",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500071,
+        "message_date": "2026-08-15T13:11:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500071",
+        "content": "Maybe someone knows a Translator; I am only exploring options for now."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.65,
+        "market_direction": "unknown",
+        "intent_stage": "weak",
+        "opportunity_type": "unknown",
+        "category": "translation",
+        "role_title": "Translator",
+        "skills": [
+          "Translator"
+        ],
+        "task_summary": null,
+        "budget": {
+          "known": false,
+          "min": null,
+          "max": null,
+          "currency": null,
+          "period": null,
+          "explicit": false
+        },
+        "work": {
+          "remote": null,
+          "location": null,
+          "full_time": null,
+          "part_time": null
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.2,
+          "commercial_plausibility": 0.35,
+          "specificity": 0.2,
+          "credibility": 0.4
+        },
+        "red_flags": [
+          "ambiguous_intent"
+        ]
+      }
+    },
+    {
+      "case_id": "g10.extensible_roles.duplicate.education",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000072",
+        "source_id": 15,
+        "external_source_id": "username:g10_extensible",
+        "external_message_id": 1500072,
+        "message_date": "2026-08-15T13:12:00.000Z",
+        "message_url": "https://t.me/g10_extensible/1500072",
+        "content": "Looking for a Online educator for a paid project with a defined scope and deadline."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.9,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "education",
+        "role_title": "Online educator",
+        "skills": [
+          "Online educator"
+        ],
+        "task_summary": "Complete a paid project as a Online educator",
+        "budget": {
+          "known": true,
+          "min": 1000,
+          "max": 2000,
+          "currency": "USD",
+          "period": "project",
+          "explicit": true
+        },
+        "work": {
+          "remote": true,
+          "location": null,
+          "full_time": false,
+          "part_time": false
+        },
+        "language": "en",
+        "contact": {
+          "telegram": null,
+          "email": null,
+          "url": null
+        },
+        "quality": {
+          "actionability": 0.88,
+          "commercial_plausibility": 0.85,
+          "specificity": 0.85,
+          "credibility": 0.8
+        },
+        "red_flags": []
+      }
+    }
+  ]
+}

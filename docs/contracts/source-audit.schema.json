@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SourceAuditV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "decision",
+    "confidence",
+    "languages",
+    "categories",
+    "content_mix",
+    "metrics",
+    "reasons"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "source_audit.v1"
+    },
+    "decision": {
+      "enum": [
+        "approved",
+        "rejected",
+        "needs_review"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "content_mix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direct_opportunities",
+        "vacancies",
+        "recommendation_requests",
+        "research_intent",
+        "seller_promotion",
+        "ads_spam",
+        "duplicates",
+        "ordinary"
+      ],
+      "properties": {
+        "direct_opportunities": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vacancies": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recommendation_requests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "research_intent": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "seller_promotion": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ads_spam": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duplicates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ordinary": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "opportunity_yield",
+        "buyer_intent_ratio",
+        "seller_ratio",
+        "spam_ratio",
+        "duplicate_ratio"
+      ],
+      "properties": {
+        "opportunity_yield": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "buyer_intent_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "seller_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "spam_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "duplicate_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "red_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

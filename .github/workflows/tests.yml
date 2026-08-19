@@ -1,0 +1,80 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.4-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:ci@127.0.0.1:5432/postgres
+      TEST_DATABASE_URL: postgresql+psycopg://postgres:ci@127.0.0.1:5432/postgres
+      AI_REPLY_ENABLED: "false"
+      LEGACY_DELIVERY_ENABLED: "false"
+      SEND_CATCH_UP: "false"
+      SOURCE_DISCOVERY_ENABLED: "false"
+      SOURCE_AUDIT_ENABLED: "false"
+      SOURCE_GRAPH_DISCOVERY_ENABLED: "false"
+      TELEGRAM_CHAT_DISCOVERY_ENABLED: "false"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.12.2"
+          enable-cache: true
+
+      - name: Verify tool and dependency lock
+        run: |
+          uv --version
+          uv lock --check
+
+      - name: Reproduce locked environment
+        run: uv sync --locked
+
+      - name: Verify PostgreSQL migration lifecycle
+        run: |
+          uv run --frozen alembic upgrade head
+          uv run --frozen alembic current --check-heads
+          uv run --frozen alembic downgrade base
+          uv run --frozen alembic upgrade head
+          uv run --frozen alembic check
+
+      - name: Run tests and runtime checks
+        run: |
+          uv run --frozen python --version
+          uv run --frozen python -m unittest discover -s tests
+          uv run --frozen python -m py_compile freelancer_bot/*.py freelancer_bot/persistence/*.py migrations/*.py migrations/versions/*.py
+          uv run --frozen python -c "import freelancer_bot.app, freelancer_bot.config, freelancer_bot.legacy_pipeline, freelancer_bot.ports, freelancer_bot.persistence"
+          uv run --frozen python -m freelancer_bot --check-config
+
+      - name: Verify safe default startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .env
+          test ! -d sessions
+          output="$(uv run --frozen python -m freelancer_bot)"
+          printf '%s\n' "$output"
+          grep -F -- "--run" <<<"$output"

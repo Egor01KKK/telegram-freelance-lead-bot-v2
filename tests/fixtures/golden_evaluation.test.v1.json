@@ -1,0 +1,141 @@
+{
+  "schema_version": "golden_evaluation.v1",
+  "dataset_version": "golden-evaluation-test-fixture.2026-08-15.v1",
+  "dataset_kind": "test_fixture",
+  "collection_status": "ready",
+  "annotation_policy_version": "golden-annotation-policy.v1",
+  "target_min_records": 500,
+  "target_max_records": 1000,
+  "messages": [
+    {
+      "record_id": "test.opportunity.project",
+      "message": {
+        "raw_message_id": "30000000-0000-0000-0000-000000000001",
+        "source_id": 1,
+        "external_source_id": "test_capture:golden",
+        "external_message_id": 1,
+        "message_date": "2026-08-15T10:00:00+00:00",
+        "message_url": "https://example.test/golden/1",
+        "content": "TEST FIXTURE: Need a Python backend developer for a paid project."
+      },
+      "provenance": "test_fixture",
+      "capture_ref": "test-capture:1",
+      "annotator_id": "test.annotator",
+      "annotated_at": "2026-08-15T10:10:00+00:00",
+      "label": {
+        "is_opportunity": true,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "software_backend",
+        "role_title": "Backend developer",
+        "skills": ["Python", "backend development"],
+        "duplicate_label": "duplicate",
+        "duplicate_group_id": "test.duplicate.project"
+      }
+    },
+    {
+      "record_id": "test.opportunity.duplicate",
+      "message": {
+        "raw_message_id": "30000000-0000-0000-0000-000000000002",
+        "source_id": 2,
+        "external_source_id": "test_capture:golden_copy",
+        "external_message_id": 2,
+        "message_date": "2026-08-15T10:01:00+00:00",
+        "message_url": "https://example.test/golden/2",
+        "content": "TEST FIXTURE: Need a Python backend developer for a paid project."
+      },
+      "provenance": "test_fixture",
+      "capture_ref": "test-capture:2",
+      "annotator_id": "test.annotator",
+      "annotated_at": "2026-08-15T10:11:00+00:00",
+      "label": {
+        "is_opportunity": true,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "software_backend",
+        "role_title": "Backend developer",
+        "skills": ["Python", "backend development"],
+        "duplicate_label": "duplicate",
+        "duplicate_group_id": "test.duplicate.project"
+      }
+    },
+    {
+      "record_id": "test.seller.promotion",
+      "message": {
+        "raw_message_id": "30000000-0000-0000-0000-000000000003",
+        "source_id": 1,
+        "external_source_id": "test_capture:golden",
+        "external_message_id": 3,
+        "message_date": "2026-08-15T10:02:00+00:00",
+        "message_url": "https://example.test/golden/3",
+        "content": "TEST FIXTURE: I am a backend developer available for new clients."
+      },
+      "provenance": "test_fixture",
+      "capture_ref": "test-capture:3",
+      "annotator_id": "test.annotator",
+      "annotated_at": "2026-08-15T10:12:00+00:00",
+      "label": {
+        "is_opportunity": false,
+        "market_direction": "specialist_to_buyer",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "software_backend",
+        "role_title": "Backend developer",
+        "skills": ["Python", "backend development"],
+        "duplicate_label": "unique",
+        "duplicate_group_id": null
+      }
+    },
+    {
+      "record_id": "test.ambiguous.request",
+      "message": {
+        "raw_message_id": "30000000-0000-0000-0000-000000000004",
+        "source_id": 1,
+        "external_source_id": "test_capture:golden",
+        "external_message_id": 4,
+        "message_date": "2026-08-15T10:03:00+00:00",
+        "message_url": "https://example.test/golden/4",
+        "content": "TEST FIXTURE: Maybe someone knows a backend developer; just exploring options."
+      },
+      "provenance": "test_fixture",
+      "capture_ref": "test-capture:4",
+      "annotator_id": "test.annotator",
+      "annotated_at": "2026-08-15T10:13:00+00:00",
+      "label": {
+        "is_opportunity": false,
+        "market_direction": "unknown",
+        "intent_stage": "weak",
+        "opportunity_type": "unknown",
+        "category": "software_backend",
+        "role_title": "Backend developer",
+        "skills": ["Python", "backend development"],
+        "duplicate_label": "unique",
+        "duplicate_group_id": null
+      }
+    }
+  ],
+  "relevance_pairs": [
+    {
+      "pair_id": "test.pair.relevant",
+      "profile_id": "test.profile.backend",
+      "profile_version": "profile.v1",
+      "profile_text": "Python backend developer interested in paid project work.",
+      "opportunity_record_id": "test.opportunity.project",
+      "label": "relevant",
+      "annotator_id": "test.annotator",
+      "annotated_at": "2026-08-15T10:20:00+00:00"
+    },
+    {
+      "pair_id": "test.pair.not_relevant",
+      "profile_id": "test.profile.design",
+      "profile_version": "profile.v1",
+      "profile_text": "Product designer interested in UX research and interface work.",
+      "opportunity_record_id": "test.opportunity.project",
+      "label": "not_relevant",
+      "annotator_id": "test.annotator",
+      "annotated_at": "2026-08-15T10:21:00+00:00"
+    }
+  ]
+}

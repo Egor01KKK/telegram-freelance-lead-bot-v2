@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SearchProfileV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "roles",
+    "skills",
+    "categories",
+    "opportunity_types",
+    "budget",
+    "languages",
+    "geographies",
+    "remote_preference",
+    "exclusions",
+    "semantic_summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "search_profile.v1"
+    },
+    "roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "opportunity_types": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "one_off_order",
+          "project",
+          "vacancy",
+          "part_time_contractor",
+          "consultation"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min",
+        "currency",
+        "require_explicit"
+      ],
+      "properties": {
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "require_explicit": {
+          "type": "boolean"
+        }
+      }
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "geographies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "remote_preference": {
+      "enum": [
+        "any",
+        "remote_only",
+        "onsite_allowed"
+      ]
+    },
+    "exclusions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "semantic_summary": {
+      "type": "string"
+    }
+  }
+}

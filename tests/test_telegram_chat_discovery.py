@@ -1,0 +1,434 @@
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime, timezone
+from types import SimpleNamespace
+import unittest
+
+from telethon.tl.types import Channel
+
+from freelancer_bot.config import RuntimeConfig
+from freelancer_bot.persistence.collector_accounts import CollectorAccountRepository
+from freelancer_bot.persistence.database import Database
+from freelancer_bot.persistence.source_repository import SourceRepository, SourceStatus
+from freelancer_bot.persistence.telegram_chat_discovery import (
+    SCREEN_JOB_TYPE,
+    TelegramChatDiscoveryRepository,
+    normalize_topic,
+)
+from freelancer_bot.persistence.telegram_operation_state import (
+    TelegramCollectorOperationRepository,
+)
+from freelancer_bot.telegram_chat_discovery import (
+    ScreenClassification,
+    ScreenResponse,
+    TelegramChatDiscoveryService,
+    TelegramChatScreenPolicy,
+    input_entity_for_peer,
+    telegram_chat_screen_response_schema,
+)
+from freelancer_bot.telegram_request_governor import TelegramRequestGovernor
+from postgres_support import TEST_DATABASE_URL, migrate_to_head, temporary_database
+
+
+NOW = datetime(2026, 8, 17, 12, 0, tzinfo=timezone.utc)
+
+
+class _ScreenProvider:
+    name = "fake"
+    model = "fake-screen-v1"
+
+    async def classify(self, _peer, messages):
+        return ScreenClassification(
+            decision="WATCH",
+            confidence=0.95,
+            labels=tuple("BUYER_TO_SPECIALIST" for _ in messages),
+            reason_codes=("fixture",),
+        )
+
+
+class TelegramChatDiscoverySchemaTest(unittest.TestCase):
+    def test_screen_schema_is_strict_and_covers_all_message_indices(self):
+        schema = telegram_chat_screen_response_schema()
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(schema["properties"]["decision"]["enum"], ["WATCH", "SKIP", "UNCLEAR"])
+        valid = ScreenResponse.model_validate(
+            {
+                "decision": "WATCH",
+                "confidence": 0.9,
+                "labels": [
+                    {"message_index": 1, "category": "BUYER_TO_SPECIALIST", "confidence": 0.9},
+                    {"message_index": 2, "category": "OTHER", "confidence": 0.8},
+                ],
+                "reason_codes": ["useful_demand_thresholds_met"],
+            }
+        )
+        self.assertEqual([item.message_index for item in valid.labels], [1, 2])
+        with self.assertRaises(ValueError):
+            ScreenResponse.model_validate(
+                {
+                    "decision": "WATCH",
+                    "confidence": 0.9,
+                    "labels": [
+                        {"message_index": 1, "category": "OTHER", "confidence": 0.8},
+                    ],
+                    "reason_codes": [],
+                    "unexpected": True,
+                }
+            )
+
+    def test_private_peer_input_preserves_access_hash_for_reuse(self):
+        peer = SimpleNamespace(
+            peer_type="supergroup",
+            telegram_peer_id=123,
+            telegram_access_hash=456,
+            username=None,
+            canonical_url=None,
+        )
+
+        input_peer = input_entity_for_peer(peer)
+
+        self.assertEqual(type(input_peer).__name__, "InputPeerChannel")
+        self.assertEqual(input_peer.channel_id, 123)
+        self.assertEqual(input_peer.access_hash, 456)
+
+
+@unittest.skipUnless(TEST_DATABASE_URL, "TEST_DATABASE_URL is not configured")
+class TelegramChatDiscoveryPostgresTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.database_context = temporary_database()
+        self.database_url = self.database_context.__enter__()
+        migrate_to_head(self.database_url)
+        self.database = Database(self.database_url, pool_size=4, max_overflow=8)
+        self.repository = TelegramChatDiscoveryRepository()
+
+    async def asyncTearDown(self) -> None:
+        await self.database.close()
+        self.database_context.__exit__(None, None, None)
+
+    async def _account(self, external_account_id: str = "chat-discovery-fixture") -> int:
+        async with self.database.transaction() as connection:
+            account = await CollectorAccountRepository().ensure(
+                connection,
+                platform="telegram",
+                external_account_id=external_account_id,
+                display_name="Chat discovery fixture",
+            )
+            await TelegramCollectorOperationRepository().ensure(
+                connection,
+                collector_account_id=account.id,
+            )
+        return account.id
+
+    def _config(self) -> RuntimeConfig:
+        return RuntimeConfig(
+            _env_file=None,
+            telegram_crawl_min_delay_seconds=0,
+            telegram_crawl_max_delay_seconds=0,
+            telegram_source_cooldown_min_seconds=0,
+            telegram_source_cooldown_max_seconds=0,
+            telegram_governor_lease_seconds=900,
+            telegram_chat_discovery_history_limit=25,
+        )
+
+    async def test_topic_normalization_is_conservative_and_idempotent(self):
+        first = normalize_topic("  Startup   ", "EN")
+        second = normalize_topic("startup", "en")
+        russian = normalize_topic("startup", "ru")
+        self.assertEqual(first, second)
+        self.assertNotEqual(first, russian)
+        self.assertNotEqual(normalize_topic("founders", "en"), first)
+
+        async with self.database.transaction() as connection:
+            one = await self.repository.ensure_topic(
+                connection,
+                topic_text="  Startup ",
+                language="en",
+                topic_kind="base",
+            )
+            two = await self.repository.ensure_topic(
+                connection,
+                topic_text="startup",
+                language="en",
+                topic_kind="profile",
+            )
+        self.assertEqual(one.id, two.id)
+
+    async def test_response_chats_are_deduplicated_and_known_source_is_not_screened(self):
+        account_id = await self._account()
+        known = Channel(
+            id=100,
+            access_hash=1000,
+            title="Known group",
+            photo=None,
+            date=None,
+            username="known_group",
+            megagroup=True,
+        )
+        broadcast = Channel(
+            id=200,
+            access_hash=2000,
+            title="Broadcast channel",
+            photo=None,
+            date=None,
+            username="broadcast_channel",
+            megagroup=False,
+            broadcast=True,
+        )
+        async with self.database.transaction() as connection:
+            known_source = await SourceRepository().create_candidate(
+                connection,
+                platform="telegram",
+                external_id="username:known_group",
+                access_type="public",
+                display_name="Known group",
+                provider="fixture",
+                lineage_key="fixture-known",
+                handle="@known_group",
+                canonical_url="https://t.me/known_group",
+            )
+            topic = await self.repository.ensure_topic(
+                connection,
+                topic_text="developers",
+                language="en",
+                topic_kind="base",
+                refresh_interval_seconds=300,
+            )
+
+        class Client:
+            def __init__(self):
+                self.search_calls = []
+                self.history_calls = []
+
+            async def __call__(self, request):
+                self.search_calls.append(request)
+                return SimpleNamespace(
+                    messages=(
+                        SimpleNamespace(id=1, chat=known),
+                        SimpleNamespace(id=2, chat=broadcast),
+                        SimpleNamespace(id=3, chat=broadcast),
+                    ),
+                    chats=(known, broadcast, broadcast),
+                )
+
+            async def get_messages(self, entity, *, limit):
+                self.history_calls.append((entity, limit))
+                return tuple(SimpleNamespace(id=index, message="buyer demand") for index in range(1, 11))
+
+        client = Client()
+        service = TelegramChatDiscoveryService(
+            self.database,
+            client,
+            config=self._config(),
+            collector_account_id=account_id,
+            governor=TelegramRequestGovernor(
+                self.database,
+                account_id,
+                self._config(),
+                clock=lambda: NOW,
+                random_uniform=lambda lower, _upper: lower,
+            ),
+            screen_provider=_ScreenProvider(),
+        )
+        first = await service.run_search(topic, search_budget=20, refresh_key="fixture")
+        repeated = await service.run_search(topic, search_budget=20, refresh_key="fixture")
+
+        self.assertEqual(len(client.search_calls), 1)
+        self.assertEqual(first.unique_peers, 2)
+        self.assertEqual(first.known_peers, 1)
+        self.assertEqual(first.new_peers, 1)
+        self.assertEqual(first.run.group_peer_count, 1)
+        self.assertEqual(first.run.broadcast_peer_count, 1)
+        self.assertEqual(first.run.chat_entity_occurrence_count, 3)
+        self.assertEqual(repeated.run.id, first.run.id)
+        self.assertEqual(first.screen_jobs_created, 1)
+        self.assertEqual(known_source.lifecycle_status, SourceStatus.CANDIDATE)
+
+        async with self.database.connect() as connection:
+            pending = await self.repository.list_screen_pending(
+                connection,
+                now=NOW,
+                limit=10,
+            )
+            jobs = await self.repository.job_counts(connection)
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(jobs[f"{SCREEN_JOB_TYPE}:queued"], 1)
+        screened = await service.screen_peer(pending[0].id)
+        self.assertIsNotNone(screened)
+        self.assertEqual(screened.status, "WATCH")
+        self.assertEqual(screened.sample_count, 10)
+        self.assertEqual(len(client.history_calls), 1)
+        self.assertEqual(client.history_calls[0][1], 25)
+
+        async with self.database.connect() as connection:
+            peer = await self.repository.get_peer(connection, pending[0].id)
+            source = await SourceRepository().get(connection, peer.source_id)
+            lineage = await SourceRepository().list_lineage(connection, source.id)
+        self.assertEqual(peer.dedup_bucket, "ALREADY_CANDIDATE")
+        self.assertEqual(source.lifecycle_status, SourceStatus.CANDIDATE)
+        self.assertTrue(any(item.provider == "telegram_chat_search" for item in lineage))
+
+        async with self.database.transaction() as connection:
+            second_topic = await self.repository.ensure_topic(
+                connection,
+                topic_text="startup",
+                language="en",
+                topic_kind="base",
+                refresh_interval_seconds=300,
+            )
+        second = await service.run_search(second_topic, search_budget=20, refresh_key="second-topic")
+        self.assertEqual(second.known_peers, 2)
+        self.assertEqual(second.new_peers, 0)
+        self.assertEqual(second.screen_jobs_created, 0)
+        self.assertEqual(len(client.history_calls), 1)
+
+    async def test_screen_pending_limit_drains_only_requested_batch(self):
+        account_id = await self._account("chat-discovery-bounded-screen")
+        async with self.database.transaction() as connection:
+            for index in range(20):
+                await self.repository.upsert_peer(
+                    connection,
+                    canonical_peer_identity=f"peer:bounded:{index}",
+                    peer_type="group",
+                    telegram_peer_id=10_000 + index,
+                    telegram_access_hash=20_000 + index,
+                    display_name=f"Bounded peer {index}",
+                    username=None,
+                    canonical_url=None,
+                    access_type="public",
+                    source_id=None,
+                    dedup_bucket="GENUINELY_NEW",
+                    collector_account_id=account_id,
+                )
+
+        class Client:
+            def __init__(self):
+                self.history_calls = 0
+
+            async def get_messages(self, _entity, *, limit):
+                self.history_calls += 1
+                if limit != 25:
+                    raise AssertionError(f"expected history limit 25, got {limit}")
+                return tuple(
+                    SimpleNamespace(id=index, message="buyer demand")
+                    for index in range(1, 26)
+                )
+
+        class CountingScreenProvider(_ScreenProvider):
+            def __init__(self):
+                self.calls = 0
+
+            async def classify(self, peer, messages):
+                self.calls += 1
+                return await super().classify(peer, messages)
+
+        client = Client()
+        screen_provider = CountingScreenProvider()
+        service = TelegramChatDiscoveryService(
+            self.database,
+            client,
+            config=self._config(),
+            collector_account_id=account_id,
+            governor=TelegramRequestGovernor(
+                self.database,
+                account_id,
+                self._config(),
+                clock=lambda: NOW,
+                random_uniform=lambda lower, _upper: lower,
+            ),
+            screen_provider=screen_provider,
+        )
+
+        job_ids = await service.enqueue_pending_screens(limit=5)
+        self.assertEqual(len(job_ids), 5)
+        await service.drain(
+            worker_id="bounded-screen-test",
+            job_type=SCREEN_JOB_TYPE,
+            job_ids=job_ids,
+            timeout_seconds=10,
+        )
+
+        async with self.database.connect() as connection:
+            screen_statuses = await self.repository.screen_status_counts(connection)
+            jobs = await self.repository.job_counts(connection)
+
+        self.assertEqual(screen_provider.calls, 5)
+        self.assertEqual(client.history_calls, 5)
+        self.assertEqual(screen_statuses["WATCH"], 5)
+        self.assertEqual(screen_statuses["SCREEN_PENDING"], 15)
+        self.assertEqual(jobs.get(f"{SCREEN_JOB_TYPE}:completed", 0), 5)
+        self.assertEqual(jobs.get(f"{SCREEN_JOB_TYPE}:queued", 0), 0)
+        self.assertEqual(jobs.get(f"{SCREEN_JOB_TYPE}:running", 0), 0)
+
+    async def test_backpressure_pauses_new_topic_searches(self):
+        account_id = await self._account("chat-discovery-backpressure")
+        async with self.database.transaction() as connection:
+            peer, _created = await self.repository.upsert_peer(
+                connection,
+                canonical_peer_identity="peer:backpressure",
+                peer_type="group",
+                telegram_peer_id=123,
+                display_name="Backpressure fixture",
+                username=None,
+                canonical_url=None,
+                access_type="private",
+                source_id=None,
+                dedup_bucket="GENUINELY_NEW",
+                collector_account_id=account_id,
+            )
+            pressure = await self.repository.backpressure(
+                connection,
+                pending_screen_limit=1,
+                source_audit_limit=100,
+                ai_limit=100,
+            )
+        self.assertEqual(peer.screen_status, "SCREEN_PENDING")
+        self.assertTrue(pressure.paused)
+        self.assertIn("screen_backlog", pressure.reasons)
+
+    async def test_two_collectors_have_independent_operation_state(self):
+        first_id = await self._account("chat-discovery-collector-1")
+        second_id = await self._account("chat-discovery-collector-2")
+        self.assertNotEqual(first_id, second_id)
+        async with self.database.connect() as connection:
+            states = await TelegramCollectorOperationRepository().list_status(
+                connection,
+                now=NOW,
+                limit=10,
+            )
+        by_id = {item.collector_account_id: item for item in states}
+        self.assertEqual(by_id[first_id].status.value, "ready")
+        self.assertEqual(by_id[second_id].status.value, "ready")
+
+    async def test_screen_policy_keeps_small_ambiguous_samples_unclear_and_bad_samples_skip(self):
+        policy = TelegramChatScreenPolicy(
+            version="test.v1",
+            minimum_sample=10,
+            minimum_useful_messages=3,
+            minimum_useful_ratio=0.12,
+            minimum_confidence=0.65,
+            maximum_seller_ratio=0.70,
+            maximum_spam_ratio=0.70,
+        )
+        unclear = policy.evaluate(
+            sample_count=2,
+            classification=ScreenClassification(
+                decision="WATCH",
+                confidence=0.99,
+                labels=("BUYER_TO_SPECIALIST", "BUYER_TO_SPECIALIST"),
+            ),
+        )
+        skipped = policy.evaluate(
+            sample_count=10,
+            classification=ScreenClassification(
+                decision="SKIP",
+                confidence=0.99,
+                labels=tuple("SELLER_SELF_PROMO" for _ in range(10)),
+            ),
+        )
+        self.assertEqual(unclear[0], "UNCLEAR")
+        self.assertEqual(skipped[0], "SKIP")
+
+
+if __name__ == "__main__":
+    unittest.main()

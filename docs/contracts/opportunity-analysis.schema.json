@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpportunityAnalysisV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "is_opportunity",
+    "confidence",
+    "market_direction",
+    "intent_stage",
+    "opportunity_type",
+    "category",
+    "role_title",
+    "skills",
+    "task_summary",
+    "budget",
+    "work",
+    "language",
+    "contact",
+    "quality",
+    "red_flags"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "opportunity_analysis.v1"
+    },
+    "is_opportunity": {
+      "type": "boolean"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "market_direction": {
+      "enum": [
+        "buyer_to_specialist",
+        "specialist_to_buyer",
+        "unknown"
+      ]
+    },
+    "intent_stage": {
+      "enum": [
+        "active",
+        "recommendation",
+        "research",
+        "weak",
+        "none"
+      ]
+    },
+    "opportunity_type": {
+      "enum": [
+        "one_off_order",
+        "project",
+        "vacancy",
+        "part_time_contractor",
+        "consultation",
+        "unknown"
+      ]
+    },
+    "category": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "role_title": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "task_summary": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "known",
+        "min",
+        "max",
+        "currency",
+        "period",
+        "explicit"
+      ],
+      "properties": {
+        "known": {
+          "type": "boolean"
+        },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "period": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "explicit": {
+          "type": "boolean"
+        }
+      }
+    },
+    "work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remote",
+        "location",
+        "full_time",
+        "part_time"
+      ],
+      "properties": {
+        "remote": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "location": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "full_time": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "part_time": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "language": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "contact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "telegram",
+        "email",
+        "url"
+      ],
+      "properties": {
+        "telegram": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "email": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionability",
+        "commercial_plausibility",
+        "specificity",
+        "credibility"
+      ],
+      "properties": {
+        "actionability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "commercial_plausibility": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "specificity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "credibility": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "red_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

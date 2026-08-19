@@ -1,0 +1,262 @@
+{
+  "schema_version": "opportunity_evaluation.v1",
+  "dataset_version": "synthetic-opportunity-eval.2026-08-09.v1",
+  "cases": [
+    {
+      "case_id": "ru.active.project",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000001",
+        "source_id": 1,
+        "external_source_id": "username:eval_ru",
+        "external_message_id": 101,
+        "message_date": "2026-08-09T10:00:00+00:00",
+        "message_url": "https://t.me/eval_ru/101",
+        "content": "Ищем разработчика Telegram-бота. Бюджет 100 000 ₽ за проект, пишите @buyer_ru"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.96,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "telegram_automation",
+        "role_title": "Telegram bot developer",
+        "skills": ["Telegram Bot API"],
+        "task_summary": "Разработать Telegram-бота",
+        "budget": {"known": true, "min": 100000, "max": 100000, "currency": "RUB", "period": "project", "explicit": true},
+        "work": {"remote": null, "location": null, "full_time": null, "part_time": null},
+        "language": "ru",
+        "contact": {"telegram": "@buyer_ru", "email": null, "url": null},
+        "quality": {"actionability": 0.95, "commercial_plausibility": 0.9, "specificity": 0.9, "credibility": 0.8},
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "en.active.one_off",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000002",
+        "source_id": 2,
+        "external_source_id": "username:eval_en",
+        "external_message_id": 201,
+        "message_date": "2026-08-09T10:01:00+00:00",
+        "message_url": "https://t.me/eval_en/201",
+        "content": "Need a designer for one landing page, $500 fixed. Email work@example.test"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.95,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "one_off_order",
+        "category": "web_design",
+        "role_title": "landing page designer",
+        "skills": ["landing page design"],
+        "task_summary": "Design one landing page",
+        "budget": {"known": true, "min": 500, "max": 500, "currency": "USD", "period": "project", "explicit": true},
+        "work": {"remote": null, "location": null, "full_time": null, "part_time": null},
+        "language": "en",
+        "contact": {"telegram": null, "email": "work@example.test", "url": null},
+        "quality": {"actionability": 0.95, "commercial_plausibility": 0.9, "specificity": 0.9, "credibility": 0.8},
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "ru.active.vacancy",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000003",
+        "source_id": 1,
+        "external_source_id": "username:eval_ru",
+        "external_message_id": 102,
+        "message_date": "2026-08-09T10:02:00+00:00",
+        "message_url": "https://t.me/eval_ru/102",
+        "content": "В штат ищем Python backend-разработчика, удалённо, 200 000–250 000 ₽ в месяц"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.94,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "vacancy",
+        "category": "software_development",
+        "role_title": "Python backend developer",
+        "skills": ["Python", "backend development"],
+        "task_summary": "Работа Python backend-разработчиком в штате",
+        "budget": {"known": true, "min": 200000, "max": 250000, "currency": "RUB", "period": "month", "explicit": true},
+        "work": {"remote": true, "location": null, "full_time": true, "part_time": false},
+        "language": "ru",
+        "contact": {"telegram": null, "email": null, "url": null},
+        "quality": {"actionability": 0.9, "commercial_plausibility": 0.95, "specificity": 0.9, "credibility": 0.8},
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "en.active.part_time",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000004",
+        "source_id": 2,
+        "external_source_id": "username:eval_en",
+        "external_message_id": 202,
+        "message_date": "2026-08-09T10:03:00+00:00",
+        "message_url": "https://t.me/eval_en/202",
+        "content": "Looking for a part-time n8n contractor, about 15 hours per week, remote"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.93,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "part_time_contractor",
+        "category": "business_process_automation",
+        "role_title": "n8n contractor",
+        "skills": ["n8n"],
+        "task_summary": "Part-time n8n automation work",
+        "budget": {"known": false, "min": null, "max": null, "currency": null, "period": null, "explicit": false},
+        "work": {"remote": true, "location": null, "full_time": false, "part_time": true},
+        "language": "en",
+        "contact": {"telegram": null, "email": null, "url": null},
+        "quality": {"actionability": 0.85, "commercial_plausibility": 0.9, "specificity": 0.8, "credibility": 0.75},
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "ru.research.consultation",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000005",
+        "source_id": 1,
+        "external_source_id": "username:eval_ru",
+        "external_message_id": 103,
+        "message_date": "2026-08-09T10:04:00+00:00",
+        "message_url": "https://t.me/eval_ru/103",
+        "content": "Нужна платная консультация по архитектуре CRM: хотим оценить варианты интеграции"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.82,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "research",
+        "opportunity_type": "consultation",
+        "category": "crm_architecture",
+        "role_title": "CRM architect",
+        "skills": ["CRM architecture", "systems integration"],
+        "task_summary": "Проконсультировать по вариантам интеграции CRM",
+        "budget": {"known": false, "min": null, "max": null, "currency": null, "period": null, "explicit": true},
+        "work": {"remote": null, "location": null, "full_time": null, "part_time": null},
+        "language": "ru",
+        "contact": {"telegram": null, "email": null, "url": null},
+        "quality": {"actionability": 0.75, "commercial_plausibility": 0.85, "specificity": 0.7, "credibility": 0.75},
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "ru.seller.promotion",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000006",
+        "source_id": 1,
+        "external_source_id": "username:eval_ru",
+        "external_message_id": 104,
+        "message_date": "2026-08-09T10:05:00+00:00",
+        "message_url": "https://t.me/eval_ru/104",
+        "content": "Разрабатываю Telegram-ботов под ключ, свободен для новых проектов"
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.97,
+        "market_direction": "specialist_to_buyer",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": "telegram_automation",
+        "role_title": "Telegram bot developer",
+        "skills": ["Telegram Bot API"],
+        "task_summary": "Предложение услуг по разработке Telegram-ботов",
+        "budget": {"known": false, "min": null, "max": null, "currency": null, "period": null, "explicit": false},
+        "work": {"remote": null, "location": null, "full_time": null, "part_time": null},
+        "language": "ru",
+        "contact": {"telegram": null, "email": null, "url": null},
+        "quality": {"actionability": 0.0, "commercial_plausibility": 0.8, "specificity": 0.4, "credibility": 0.7},
+        "red_flags": ["seller_self_promotion"]
+      }
+    },
+    {
+      "case_id": "en.none.community_news",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000007",
+        "source_id": 2,
+        "external_source_id": "username:eval_en",
+        "external_message_id": 203,
+        "message_date": "2026-08-09T10:06:00+00:00",
+        "message_url": "https://t.me/eval_en/203",
+        "content": "The community meetup starts tomorrow at 7 PM. Registration is closed."
+      },
+      "parent": null,
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": false,
+        "confidence": 0.98,
+        "market_direction": "unknown",
+        "intent_stage": "none",
+        "opportunity_type": "unknown",
+        "category": null,
+        "role_title": null,
+        "skills": [],
+        "task_summary": null,
+        "budget": {"known": false, "min": null, "max": null, "currency": null, "period": null, "explicit": false},
+        "work": {"remote": null, "location": null, "full_time": null, "part_time": null},
+        "language": "en",
+        "contact": {"telegram": null, "email": null, "url": null},
+        "quality": {"actionability": 0.0, "commercial_plausibility": 0.0, "specificity": 0.7, "credibility": 0.9},
+        "red_flags": []
+      }
+    },
+    {
+      "case_id": "ru.reply.recommendation",
+      "current": {
+        "raw_message_id": "10000000-0000-0000-0000-000000000008",
+        "source_id": 3,
+        "external_source_id": "username:eval_reply",
+        "external_message_id": 302,
+        "message_date": "2026-08-09T10:08:00+00:00",
+        "message_url": "https://t.me/eval_reply/302",
+        "content": "Посоветуйте, пожалуйста, проверенного специалиста"
+      },
+      "parent": {
+        "raw_message_id": "20000000-0000-0000-0000-000000000008",
+        "source_id": 3,
+        "external_source_id": "username:eval_reply",
+        "external_message_id": 301,
+        "message_date": "2026-08-09T10:07:00+00:00",
+        "message_url": "https://t.me/eval_reply/301",
+        "content": "Нужно настроить аналитику интернет-магазина в GA4"
+      },
+      "expected": {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": true,
+        "confidence": 0.88,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "recommendation",
+        "opportunity_type": "project",
+        "category": "web_analytics",
+        "role_title": "GA4 analytics specialist",
+        "skills": ["GA4", "ecommerce analytics"],
+        "task_summary": "Настроить GA4 для интернет-магазина",
+        "budget": {"known": false, "min": null, "max": null, "currency": null, "period": null, "explicit": false},
+        "work": {"remote": null, "location": null, "full_time": null, "part_time": null},
+        "language": "ru",
+        "contact": {"telegram": null, "email": null, "url": null},
+        "quality": {"actionability": 0.8, "commercial_plausibility": 0.85, "specificity": 0.8, "credibility": 0.75},
+        "red_flags": []
+      }
+    }
+  ]
+}
