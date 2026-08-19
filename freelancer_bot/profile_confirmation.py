@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from decimal import Decimal
+from datetime import datetime, timezone
 from html import escape
 from uuid import UUID
 
@@ -20,6 +21,10 @@ from .profile_discovery import (
     ProfileDiscoveryIntentRepository,
     build_profile_discovery_intent,
 )
+from .persistence.telegram_chat_discovery import (
+    TelegramChatDiscoveryRepository,
+)
+from .telegram_chat_discovery import _refresh_bucket
 from .telegram_profile_discovery import (
     TELEGRAM_PROFILE_DISCOVERY_JOB_TYPE,
     profile_discovery_job_key,
@@ -63,13 +68,23 @@ class ProfileConfirmationService:
         analysis_cache: SearchProfileAnalysisCacheRepository | None = None,
         discovery_intents: ProfileDiscoveryIntentRepository | None = None,
         jobs: DurableJobRepository | None = None,
+        telegram_chat_discovery_enabled: bool = False,
+        telegram_chat_discovery_max_topics_per_cycle: int = 5,
     ) -> None:
+        if not 1 <= telegram_chat_discovery_max_topics_per_cycle <= 100:
+            raise ValueError(
+                "telegram_chat_discovery_max_topics_per_cycle must be between 1 and 100"
+            )
         self._database = database
         self._users = users or UserRepository()
         self._profiles = profiles or SearchProfileRepository()
         self._analysis_cache = analysis_cache or SearchProfileAnalysisCacheRepository()
         self._discovery_intents = discovery_intents or ProfileDiscoveryIntentRepository()
         self._jobs = jobs or DurableJobRepository()
+        self._telegram_chat_discovery_enabled = telegram_chat_discovery_enabled
+        self._telegram_chat_discovery_max_topics_per_cycle = (
+            telegram_chat_discovery_max_topics_per_cycle
+        )
 
     async def create_manual_draft(
         self,
@@ -255,17 +270,24 @@ class ProfileConfirmationService:
             )
             from .telegram_chat_discovery import ensure_profile_derived_topics
 
-            await ensure_profile_derived_topics(connection, intent)
-            await self._jobs.enqueue(
+            topics = await ensure_profile_derived_topics(
                 connection,
-                job_type=TELEGRAM_PROFILE_DISCOVERY_JOB_TYPE,
-                idempotency_key=profile_discovery_job_key(
-                    outcome.profile.id,
-                    outcome.profile.revision,
-                ),
-                max_attempts=3,
-                correlation_id=outcome.profile.id,
+                intent,
+                use_buyer_intent_queries=self._telegram_chat_discovery_enabled,
             )
+            if self._telegram_chat_discovery_enabled:
+                await self._enqueue_due_chat_discovery_jobs(connection, topics)
+            else:
+                await self._jobs.enqueue(
+                    connection,
+                    job_type=TELEGRAM_PROFILE_DISCOVERY_JOB_TYPE,
+                    idempotency_key=profile_discovery_job_key(
+                        outcome.profile.id,
+                        outcome.profile.revision,
+                    ),
+                    max_attempts=3,
+                    correlation_id=outcome.profile.id,
+                )
         view = await self.show(
             platform=platform,
             external_user_id=external_user_id,
@@ -275,6 +297,26 @@ class ProfileConfirmationService:
             profile=view,
             trial_started=outcome.trial_started,
         )
+
+    async def _enqueue_due_chat_discovery_jobs(
+        self,
+        connection,
+        topics,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        repository = TelegramChatDiscoveryRepository()
+        enqueued = 0
+        for topic in topics:
+            if enqueued >= self._telegram_chat_discovery_max_topics_per_cycle:
+                break
+            if topic.next_eligible_at is not None and topic.next_eligible_at > now:
+                continue
+            await repository.enqueue_search_job(
+                connection,
+                topic_id=topic.id,
+                refresh_key=_refresh_bucket(topic, now=now),
+            )
+            enqueued += 1
 
     async def deactivate(
         self,

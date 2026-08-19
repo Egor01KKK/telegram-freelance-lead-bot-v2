@@ -50,6 +50,7 @@ from .persistence.telegram_chat_discovery import (
 )
 from .persistence.telegram_operation_state import TelegramCollectorFloodWaitActive
 from .telegram_request_governor import TelegramRequestCategory, TelegramRequestGovernor
+from .telegram_profile_discovery import build_telegram_profile_search_queries
 from .worker import DurableWorker, WorkerOptions
 from .openai_compat import add_sampling_parameter
 
@@ -1008,41 +1009,58 @@ async def ensure_profile_derived_topics(
     intent: Any,
     *,
     refresh_interval_seconds: int = 21_600,
+    use_buyer_intent_queries: bool = False,
 ) -> tuple[ChatDiscoveryTopicRecord, ...]:
-    """Project structured profile concepts into the global topic pool.
+    """Project profile concepts into the global topic pool.
 
-    This intentionally consumes existing intent fields only.  It does not make
-    a per-profile AI call and it does not create a user-specific source list.
+    Chat Discovery mode opts into the existing deterministic buyer-intent query
+    builder. Legacy profile discovery keeps its historical raw projection.
+    Neither path makes a per-profile AI call or creates a user-specific source
+    list.
     """
+    if use_buyer_intent_queries:
+        topic_specs = tuple(
+            (query.text, query.language)
+            for query in build_telegram_profile_search_queries(intent, max_queries=20)
+        )
+    else:
+        concepts: list[str] = []
+        for field in ("roles", "services", "skills", "industries"):
+            values = getattr(intent, field, ()) or ()
+            concepts.extend(
+                str(value).strip()
+                for value in values
+                if str(value).strip()
+            )
+        deduplicated: list[str] = []
+        seen: set[str] = set()
+        for value in concepts:
+            normalized, _ = normalize_topic(value, "en")
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            deduplicated.append(value)
+        languages = tuple(getattr(intent, "languages", ()) or ()) or ("en", "ru")
+        topic_specs = tuple(
+            (value, language)
+            for value in deduplicated[:24]
+            for language in languages[:2]
+        )
 
-    concepts: list[str] = []
-    for field in ("roles", "services", "skills", "industries"):
-        values = getattr(intent, field, ()) or ()
-        concepts.extend(str(value).strip() for value in values if str(value).strip())
-    deduplicated: list[str] = []
-    seen: set[str] = set()
-    for value in concepts:
-        normalized, _ = normalize_topic(value, "en")
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        deduplicated.append(value)
-    languages = tuple(getattr(intent, "languages", ()) or ()) or ("en", "ru")
     repository = TelegramChatDiscoveryRepository()
     records: list[ChatDiscoveryTopicRecord] = []
-    for value in deduplicated[:24]:
-        for language in languages[:2]:
-            records.append(
-                await repository.ensure_topic(
-                    connection,
-                    topic_text=value,
-                    language=language,
-                    topic_kind="profile",
-                    origin_key=f"profile-intent:{getattr(intent, 'id', 'unknown')}",
-                    priority=60,
-                    refresh_interval_seconds=refresh_interval_seconds,
-                )
+    for topic_text, language in topic_specs:
+        records.append(
+            await repository.ensure_topic(
+                connection,
+                topic_text=topic_text,
+                language=language,
+                topic_kind="profile",
+                origin_key=f"profile-intent:{getattr(intent, 'id', 'unknown')}",
+                priority=60,
+                refresh_interval_seconds=refresh_interval_seconds,
             )
+        )
     return tuple(records)
 
 

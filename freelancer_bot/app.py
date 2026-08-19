@@ -66,6 +66,10 @@ from .profile_onboarding_service import ProfileOnboardingService
 from .replies import OpenAIReplyDraftGenerator, ReplyDraft, ReplyDraftError
 from .sources import Source, load_sources
 from .source_discovery_runtime import AutonomousSourceDiscoveryRuntime
+from .telegram_chat_discovery import (
+    TelegramChatDiscoveryRuntime,
+    TelegramChatDiscoveryService,
+)
 from .telegram_profile_discovery import TelegramProfileDiscoveryRuntime
 from .telegram_request_governor import TelegramRequestCategory, TelegramRequestGovernor
 from .storage import Storage, StoredLead
@@ -212,7 +216,19 @@ class LeadBot:
             if background_enabled
             else None
         )
-        self.profile_confirmation = ProfileConfirmationService(self.database)
+        self.profile_confirmation = ProfileConfirmationService(
+            self.database,
+            telegram_chat_discovery_enabled=getattr(
+                config,
+                "telegram_chat_discovery_enabled",
+                False,
+            ),
+            telegram_chat_discovery_max_topics_per_cycle=getattr(
+                config,
+                "telegram_chat_discovery_max_topics_per_cycle",
+                5,
+            ),
+        )
         self.profile_onboarding = _build_profile_onboarding(
             config,
             self.database,
@@ -234,6 +250,8 @@ class LeadBot:
         self._source_discovery_first_cycle: asyncio.Event | None = None
         self._source_discovery_error: BaseException | None = None
         self._profile_discovery_runtime: TelegramProfileDiscoveryRuntime | None = None
+        self._chat_discovery_runtime: TelegramChatDiscoveryRuntime | None = None
+        self._chat_discovery_task: asyncio.Task[None] | None = None
         self._telegram_governor: TelegramRequestGovernor | None = None
         self.reply_draft_provider = reply_draft_provider
         if self.reply_draft_provider is None and config.ai_reply_enabled:
@@ -280,20 +298,7 @@ class LeadBot:
                     self.collector_account_id,
                     self.config,
                 )
-            if (
-                getattr(self.config, "source_discovery_enabled", False)
-                and database is not None
-                and self._telegram_governor is not None
-            ):
-                self._profile_discovery_runtime = TelegramProfileDiscoveryRuntime(
-                    database,
-                    self.config,
-                    client=self.user_client,
-                    collector_account_id=self.collector_account_id,
-                    governor=self._telegram_governor,
-                    logger=LOGGER,
-                    worker_id=f"telegram-profile-discovery-{id(self)}",
-                )
+            self._configure_telegram_discovery_runtimes()
 
             if self.config.target_chat_id is not None and self.storage is not None:
                 self.storage.add_subscriber(self.config.target_chat_id)
@@ -303,6 +308,11 @@ class LeadBot:
             if background_enabled:
                 if getattr(self, "_profile_discovery_runtime", None) is not None:
                     await self._profile_discovery_runtime.start()
+                if getattr(self, "_chat_discovery_runtime", None) is not None:
+                    self._chat_discovery_task = asyncio.create_task(
+                        self._chat_discovery_runtime.run(),
+                        name="telegram-chat-discovery-runtime",
+                    )
                 active_sources = await self._register_source_handlers()
                 self._active_sources = active_sources
                 LOGGER.info("Monitoring %s Telegram sources", len(active_sources))
@@ -352,6 +362,7 @@ class LeadBot:
             if background_enabled:
                 if getattr(self, "_profile_discovery_runtime", None) is not None:
                     await self._profile_discovery_runtime.stop()
+                await self._stop_telegram_chat_discovery_runtime()
                 await self._stop_source_discovery_loop()
                 await self.ingestion_runtime.stop()
 
@@ -359,6 +370,7 @@ class LeadBot:
         if getattr(self, "_profile_discovery_runtime", None) is not None:
             await self._profile_discovery_runtime.stop()
             self._profile_discovery_runtime = None
+        await self._stop_telegram_chat_discovery_runtime()
         await self._stop_source_discovery_loop()
         try:
             try:
@@ -1338,6 +1350,52 @@ class LeadBot:
             )
         )
 
+    def _configure_telegram_discovery_runtimes(self) -> None:
+        database = getattr(self, "database", None)
+        governor = getattr(self, "_telegram_governor", None)
+        collector_account_id = getattr(self, "collector_account_id", None)
+        if database is None or governor is None or collector_account_id is None:
+            return
+
+        if getattr(self.config, "telegram_chat_discovery_enabled", False):
+            service = TelegramChatDiscoveryService(
+                database,
+                self.user_client,
+                config=self.config,
+                collector_account_id=collector_account_id,
+                governor=governor,
+            )
+            self._chat_discovery_runtime = TelegramChatDiscoveryRuntime(
+                service,
+                logger=LOGGER,
+            )
+            self._profile_discovery_runtime = None
+            return
+
+        if getattr(self.config, "source_discovery_enabled", False):
+            self._profile_discovery_runtime = TelegramProfileDiscoveryRuntime(
+                database,
+                self.config,
+                client=self.user_client,
+                collector_account_id=collector_account_id,
+                governor=governor,
+                logger=LOGGER,
+                worker_id=f"telegram-profile-discovery-{id(self)}",
+            )
+
+    async def _stop_telegram_chat_discovery_runtime(self) -> None:
+        runtime = getattr(self, "_chat_discovery_runtime", None)
+        if runtime is None:
+            return
+        runtime.request_stop()
+        task = getattr(self, "_chat_discovery_task", None)
+        if task is None:
+            return
+        try:
+            await task
+        finally:
+            self._chat_discovery_task = None
+
     def _log_runtime_mode(self) -> None:
         openai_configured = (
             getattr(self.config, "openai_api_key", None) is not None
@@ -1365,6 +1423,11 @@ class LeadBot:
             source_discovery_enabled=getattr(
                 self.config,
                 "source_discovery_enabled",
+                False,
+            ),
+            telegram_chat_discovery_enabled=getattr(
+                self.config,
+                "telegram_chat_discovery_enabled",
                 False,
             ),
             source_audit_enabled=(

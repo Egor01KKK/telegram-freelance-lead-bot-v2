@@ -254,6 +254,14 @@ class AutonomousSourceDiscoveryRuntime:
         governor: TelegramRequestGovernor,
         page_cache: TelegramGlobalSearchPageCache,
     ) -> tuple[ProfileDiscoveryExecution, ...]:
+        if getattr(self._config, "telegram_chat_discovery_enabled", False):
+            log_event(
+                self._logger,
+                logging.INFO,
+                "profile.discovery.telegram_disabled",
+                reason="TELEGRAM_CHAT_DISCOVERY_ENABLED=true",
+            )
+            return ()
         if not self._config.telegram_global_discovery_enabled:
             log_event(
                 self._logger,

@@ -10,13 +10,18 @@ from sqlalchemy.exc import IntegrityError
 
 from freelancer_bot.billing import TRIAL_POLICY_VERSION
 from freelancer_bot.persistence.database import Database
-from freelancer_bot.persistence.schema import durable_jobs, search_profile_analysis_cache
+from freelancer_bot.persistence.schema import (
+    durable_jobs,
+    search_profile_analysis_cache,
+    telegram_chat_discovery_topics,
+)
 from freelancer_bot.persistence.search_profiles import (
     SearchProfileActivationConflict,
     SearchProfileActivationError,
     SearchProfileOwnershipError,
     UserRepository,
 )
+from freelancer_bot.persistence.telegram_chat_discovery import SEARCH_JOB_TYPE
 from freelancer_bot.profile_confirmation import ProfileConfirmationService
 from freelancer_bot.telegram_onboarding import TelegramProfileOnboarding
 from freelancer_bot.telegram_profile_discovery import (
@@ -301,6 +306,169 @@ class SearchProfileActivationIntegrationTest(unittest.IsolatedAsyncioTestCase):
                 )
             )
         self.assertEqual(cache_count, 0)
+
+    async def test_chat_discovery_activation_uses_buyer_queries_and_skips_legacy_job(self):
+        service = ProfileConfirmationService(
+            self.database,
+            telegram_chat_discovery_enabled=True,
+            telegram_chat_discovery_max_topics_per_cycle=2,
+        )
+        draft = await service.create_manual_draft(
+            platform="telegram",
+            external_user_id="chat-discovery-profile",
+            semantic_text="Video Editor | Premiere Pro | YouTube editing",
+            roles=("Video Editor",),
+            skills=("Premiere Pro",),
+            categories=("YouTube editing", "short-form video"),
+        )
+        confirmed = await service.confirm(
+            platform="telegram",
+            external_user_id="chat-discovery-profile",
+            profile_id=draft.profile.id,
+            expected_revision=draft.profile.revision,
+        )
+
+        await service.activate(
+            platform="telegram",
+            external_user_id="chat-discovery-profile",
+            profile_id=confirmed.profile.id,
+            expected_revision=confirmed.profile.revision,
+        )
+
+        async with self.database.connect() as connection:
+            topics = (
+                await connection.execute(
+                    sa.select(telegram_chat_discovery_topics).where(
+                        telegram_chat_discovery_topics.c.topic_kind == "profile"
+                    )
+                )
+            ).mappings().all()
+            chat_jobs = (
+                await connection.execute(
+                    sa.select(durable_jobs).where(
+                        durable_jobs.c.job_type == SEARCH_JOB_TYPE
+                    )
+                )
+            ).mappings().all()
+            legacy_jobs = (
+                await connection.execute(
+                    sa.select(durable_jobs).where(
+                        durable_jobs.c.job_type == TELEGRAM_PROFILE_DISCOVERY_JOB_TYPE
+                    )
+                )
+            ).mappings().all()
+
+        self.assertLessEqual(len(topics), 20)
+        self.assertEqual(len(chat_jobs), 2)
+        self.assertEqual(legacy_jobs, [])
+        self.assertTrue(
+            all(
+                any(marker in topic["topic_text"].casefold() for marker in (
+                    "looking for",
+                    "need",
+                    "hiring",
+                    "needed",
+                    "project:",
+                    "vacancy:",
+                ))
+                for topic in topics
+            )
+        )
+
+    async def test_chat_topics_are_global_and_recent_topic_is_not_requeued(self):
+        service = ProfileConfirmationService(
+            self.database,
+            telegram_chat_discovery_enabled=True,
+            telegram_chat_discovery_max_topics_per_cycle=2,
+        )
+        first = await service.create_manual_draft(
+            platform="telegram",
+            external_user_id="chat-dedup-first",
+            semantic_text="Copywriter | SEO writing | website copy",
+            roles=("Copywriter",),
+            skills=("SEO writing",),
+            categories=("website copy",),
+        )
+        first_confirmed = await service.confirm(
+            platform="telegram",
+            external_user_id="chat-dedup-first",
+            profile_id=first.profile.id,
+            expected_revision=first.profile.revision,
+        )
+        await service.activate(
+            platform="telegram",
+            external_user_id="chat-dedup-first",
+            profile_id=first_confirmed.profile.id,
+            expected_revision=first_confirmed.profile.revision,
+        )
+
+        async with self.database.transaction() as connection:
+            first_topic = (
+                await connection.execute(
+                    sa.select(telegram_chat_discovery_topics)
+                    .where(
+                        telegram_chat_discovery_topics.c.topic_kind == "profile"
+                    )
+                    .order_by(telegram_chat_discovery_topics.c.topic_key)
+                    .limit(1)
+                )
+            ).mappings().one()
+            await connection.execute(
+                sa.update(telegram_chat_discovery_topics)
+                .where(telegram_chat_discovery_topics.c.id == first_topic["id"])
+                .values(next_eligible_at=sa.func.now() + sa.text("interval '1 day'"))
+            )
+            jobs_before = await connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(durable_jobs)
+                .where(
+                    durable_jobs.c.job_type == SEARCH_JOB_TYPE,
+                    durable_jobs.c.idempotency_key.like(
+                        f"topic:{first_topic['id']}:refresh:%"
+                    ),
+                )
+            )
+
+        second = await service.create_manual_draft(
+            platform="telegram",
+            external_user_id="chat-dedup-second",
+            semantic_text="Copywriter | SEO writing | website copy",
+            roles=("Copywriter",),
+            skills=("SEO writing",),
+            categories=("website copy",),
+        )
+        second_confirmed = await service.confirm(
+            platform="telegram",
+            external_user_id="chat-dedup-second",
+            profile_id=second.profile.id,
+            expected_revision=second.profile.revision,
+        )
+        await service.activate(
+            platform="telegram",
+            external_user_id="chat-dedup-second",
+            profile_id=second_confirmed.profile.id,
+            expected_revision=second_confirmed.profile.revision,
+        )
+
+        async with self.database.connect() as connection:
+            topic_count = await connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(telegram_chat_discovery_topics)
+                .where(telegram_chat_discovery_topics.c.topic_kind == "profile")
+            )
+            jobs_after = await connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(durable_jobs)
+                .where(
+                    durable_jobs.c.job_type == SEARCH_JOB_TYPE,
+                    durable_jobs.c.idempotency_key.like(
+                        f"topic:{first_topic['id']}:refresh:%"
+                    ),
+                )
+            )
+
+        self.assertEqual(topic_count, 20)
+        self.assertEqual(jobs_before, jobs_after)
 
     async def test_database_rejects_active_draft_and_multiple_primary_profiles(self):
         first = await self._confirm(
