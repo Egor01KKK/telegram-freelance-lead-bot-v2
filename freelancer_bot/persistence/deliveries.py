@@ -116,7 +116,27 @@ class PersonalizedDeliveryRepository:
         if card.profile_revision != trace.profile_revision:
             raise ValueError("lead card profile revision does not match the trace")
 
+        # The match trace is audit evidence, not delivery identity.  A normal
+        # Opportunity run and a profile rematch can independently produce
+        # eligible traces for the same logical recipient.  Serialize the
+        # logical identity so the lookup and insert are one concurrency-safe
+        # boundary, including rows written before the logical key existed.
         idempotency_key = delivery_idempotency_key(match, card)
+        await _lock_logical_delivery(connection, idempotency_key)
+        existing = await self.get_by_logical_identity(
+            connection,
+            opportunity_id=trace.opportunity_id,
+            search_profile_id=trace.search_profile_id,
+            profile_revision=trace.profile_revision,
+            renderer_schema_version=card.schema_version,
+        )
+        if existing is not None:
+            _validate_existing(existing, match, user, card)
+            return PersonalizedDeliveryWriteOutcome(
+                delivery=existing,
+                created=False,
+            )
+
         delivery_id = uuid4()
         job_id = await jobs.enqueue(
             connection,
@@ -155,7 +175,7 @@ class PersonalizedDeliveryRepository:
         record = await self.get_by_idempotency_key(connection, idempotency_key)
         if record is None:
             raise DeliveryPersistenceConflict("delivery insert returned no record")
-        _validate_existing(record, match, user, card, job_id)
+        _validate_existing(record, match, user, card)
         return PersonalizedDeliveryWriteOutcome(
             delivery=record,
             created=inserted_id is not None,
@@ -185,6 +205,36 @@ class PersonalizedDeliveryRepository:
                 sa.select(personalized_deliveries).where(
                     personalized_deliveries.c.idempotency_key == idempotency_key
                 )
+            )
+        ).mappings().one_or_none()
+        return None if row is None else _record(row)
+
+    async def get_by_logical_identity(
+        self,
+        connection: AsyncConnection,
+        *,
+        opportunity_id: UUID,
+        search_profile_id: UUID,
+        profile_revision: int,
+        renderer_schema_version: str,
+    ) -> PersonalizedDeliveryRecord | None:
+        row = (
+            await connection.execute(
+                sa.select(personalized_deliveries)
+                .where(
+                    personalized_deliveries.c.opportunity_id == opportunity_id,
+                    personalized_deliveries.c.search_profile_id == search_profile_id,
+                    personalized_deliveries.c.profile_revision == profile_revision,
+                    personalized_deliveries.c.schema_version
+                    == PERSONALIZED_DELIVERY_SCHEMA_VERSION,
+                    personalized_deliveries.c.renderer_schema_version
+                    == renderer_schema_version,
+                )
+                .order_by(
+                    personalized_deliveries.c.created_at,
+                    personalized_deliveries.c.id,
+                )
+                .limit(1)
             )
         ).mappings().one_or_none()
         return None if row is None else _record(row)
@@ -281,6 +331,7 @@ class PersonalizedDeliveryRepository:
                     search_profiles.c.revision.label("current_profile_revision"),
                     search_profiles.c.confirmation_status,
                     search_profiles.c.is_active,
+                    search_profiles.c.is_primary,
                     users.c.platform.label("current_recipient_platform"),
                     users.c.external_user_id.label("current_external_user_id"),
                     opportunities.c.lifecycle_status,
@@ -428,10 +479,8 @@ def delivery_idempotency_key(
 ) -> str:
     payload = {
         "delivery_schema_version": PERSONALIZED_DELIVERY_SCHEMA_VERSION,
+        "delivery_identity_version": "opportunity-profile-revision.v1",
         "renderer_schema_version": card.schema_version,
-        "match_trace_id": str(match.id),
-        "match_run_id": str(match.run_id),
-        "match_input_sha256": match.trace.input_sha256,
         "opportunity_id": str(match.trace.opportunity_id),
         "search_profile_id": str(match.trace.search_profile_id),
         "profile_revision": match.trace.profile_revision,
@@ -443,6 +492,18 @@ def delivery_idempotency_key(
         separators=(",", ":"),
     ).encode("utf-8")
     return sha256(encoded).hexdigest()
+
+
+async def _lock_logical_delivery(
+    connection: AsyncConnection,
+    idempotency_key: str,
+) -> None:
+    await connection.execute(
+        sa.text(
+            "SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"
+        ),
+        {"lock_key": f"personalized-delivery:{idempotency_key}"},
+    )
 
 
 def _telegram_chat_id(user: UserRecord) -> int:
@@ -475,6 +536,7 @@ def _suppression_code(
         or row["confirmation_status"]
         != SearchProfileConfirmationStatus.CONFIRMED.value
         or not row["is_active"]
+        or not row["is_primary"]
     ):
         return "ProfileIneligible"
     if (
@@ -500,31 +562,24 @@ def _validate_existing(
     match: MatchTraceRecord,
     user: UserRecord,
     card: TelegramLeadCard,
-    job_id: UUID,
 ) -> None:
     expected = (
-        match.id,
-        match.run_id,
         match.trace.opportunity_id,
         match.trace.search_profile_id,
         match.trace.profile_revision,
         user.id,
         card.schema_version,
-        job_id,
     )
     actual = (
-        record.match_trace_id,
-        record.match_run_id,
         record.opportunity_id,
         record.search_profile_id,
         record.profile_revision,
         record.user_id,
         record.renderer_schema_version,
-        record.job_id,
     )
     if actual != expected:
         raise DeliveryPersistenceConflict(
-            "delivery idempotency key exists with different content"
+            "delivery logical identity exists with different content"
         )
 
 

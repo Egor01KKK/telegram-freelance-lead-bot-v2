@@ -324,6 +324,7 @@ class SearchProfileRepository:
                 sa.select(search_profiles)
                 .where(
                     search_profiles.c.is_active.is_(True),
+                    search_profiles.c.is_primary.is_(True),
                     search_profiles.c.confirmation_status
                     == SearchProfileConfirmationStatus.CONFIRMED.value,
                 )
@@ -507,6 +508,23 @@ class SearchProfileRepository:
                 "search profile belongs to another user"
             )
         if current.is_active and current.is_primary:
+            # Reconcile rows created under the historical multiple-active
+            # state before honoring the idempotent activation early return.
+            await connection.execute(
+                sa.update(search_profiles)
+                .where(
+                    search_profiles.c.user_id == user_id,
+                    search_profiles.c.id != profile_id,
+                    search_profiles.c.is_active.is_(True),
+                )
+                .values(
+                    is_active=False,
+                    is_primary=False,
+                    deactivated_at=sa.func.now(),
+                    revision=search_profiles.c.revision + 1,
+                    updated_at=sa.func.now(),
+                )
+            )
             return SearchProfileActivationOutcome(
                 profile=current,
                 trial_started=False,

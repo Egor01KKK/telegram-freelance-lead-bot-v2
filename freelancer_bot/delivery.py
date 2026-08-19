@@ -171,7 +171,11 @@ class PersonalizedDeliveryService:
                 raise OpportunityNotFound(
                     f"Opportunity {match.trace.opportunity_id} does not exist"
                 )
-            if not profile.is_active or profile.revision != match.trace.profile_revision:
+            if (
+                not profile.is_active
+                or not profile.is_primary
+                or profile.revision != match.trace.profile_revision
+            ):
                 raise DeliverySchedulingError(
                     "match trace does not describe the active SearchProfile"
                 )

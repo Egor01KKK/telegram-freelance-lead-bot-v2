@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from hashlib import sha256
 import io
+import json
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -54,12 +56,15 @@ from freelancer_bot.persistence.feedback import (
 )
 from freelancer_bot.persistence.entitlements import TrialEntitlementChecker
 from freelancer_bot.persistence.jobs import DurableJobRepository
+from freelancer_bot.persistence.matches import MatchTraceRepository
 from freelancer_bot.persistence.payments import PaymentRepository
+from freelancer_bot.persistence.search_profiles import SearchProfileRepository
 from freelancer_bot.persistence.schema import (
     ai_call_telemetry,
     collector_accounts,
     delivery_action_events,
     durable_jobs,
+    match_traces,
     opportunities,
     opportunity_source_messages,
     personalized_deliveries,
@@ -69,6 +74,7 @@ from freelancer_bot.persistence.schema import (
     users,
 )
 from freelancer_bot.opportunity_dedup import PREFERRED_SOURCE_POLICY_VERSION
+from freelancer_bot.profile_confirmation import ProfileConfirmationService
 from freelancer_bot.search_profiles import (
     SEARCH_PROFILE_PARSER_VERSION,
     SEARCH_PROFILE_PREFERENCES_SCHEMA_VERSION,
@@ -208,8 +214,7 @@ class PersonalizedDeliveryPostgresTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_concurrent_schedule_delivers_each_profile_once_and_reuses_success(self):
         run_id, profile_ids, user_ids = await self._matched_run(
-            external_user_ids=("7000001", "7000001"),
-            same_user=True,
+            external_user_ids=("7000001", "7000002"),
         )
         service = self._service()
 
@@ -238,7 +243,10 @@ class PersonalizedDeliveryPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len({item.idempotency_key for item in records}), 2)
         self.assertEqual({item.telegram_message_id for item in records}, {1001, 1002})
         self.assertEqual(sender.success_count, 2)
-        self.assertEqual({call["recipient_chat_id"] for call in sender.calls}, {7000001})
+        self.assertEqual(
+            {call["recipient_chat_id"] for call in sender.calls},
+            {7000001, 7000002},
+        )
         self.assertTrue(all("%" not in call["body_html"] for call in sender.calls))
 
         original_bodies = {item.card_body_html for item in records}
@@ -271,6 +279,285 @@ class PersonalizedDeliveryPostgresTest(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(states, {"completed"})
         self.assertEqual(ai_calls, 0)
+
+    async def test_logical_delivery_deduplicates_across_matching_runs(self):
+        run_id, profile_ids, _ = await self._matched_run(
+            external_user_ids=("7000015",)
+        )
+        service = self._service()
+        first = await service.schedule_run(run_id, rendered_at=NOW)
+        self.assertEqual(first.created_count, 1)
+        opportunity_id = first.deliveries[0].delivery.opportunity_id
+
+        second_matching = await CandidateMatchingService(self.database).generate_matches(
+            (opportunity_id,),
+            evaluated_at=NOW + timedelta(hours=1),
+            decision_policy=MatchDecisionPolicy(
+                minimum_relevance_score=Decimal("0.0000"),
+                minimum_rank_score=Decimal("0.0000"),
+            ),
+        )
+        second = await service.schedule_run(
+            second_matching.persistence.run.id,
+            rendered_at=NOW + timedelta(hours=1),
+        )
+
+        self.assertEqual(second.created_count, 0)
+        self.assertEqual(second.reused_count, 1)
+        async with self.database.connect() as connection:
+            delivery_count = await connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(personalized_deliveries)
+                .where(
+                    personalized_deliveries.c.opportunity_id == opportunity_id,
+                    personalized_deliveries.c.search_profile_id == profile_ids[0],
+                    personalized_deliveries.c.profile_revision == 1,
+                )
+            )
+            delivery_job_count = await connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(durable_jobs)
+                .where(durable_jobs.c.job_type == PERSONALIZED_DELIVERY_JOB_TYPE)
+            )
+            trace_count = await connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(match_traces)
+                .where(
+                    match_traces.c.opportunity_id == opportunity_id,
+                    match_traces.c.search_profile_id == profile_ids[0],
+                )
+            )
+        self.assertEqual(delivery_count, 1)
+        self.assertEqual(delivery_job_count, 1)
+        self.assertEqual(trace_count, 2)
+
+    async def test_concurrent_logical_delivery_collision_converges(self):
+        run_id, profile_ids, _ = await self._matched_run(
+            external_user_ids=("7000016",)
+        )
+        async with self.database.connect() as connection:
+            first_match = (
+                await MatchTraceRepository().list_eligible_for_run(
+                    connection,
+                    run_id,
+                )
+            )[0]
+        second_matching = await CandidateMatchingService(self.database).generate_matches(
+            (first_match.trace.opportunity_id,),
+            evaluated_at=NOW + timedelta(hours=1),
+            decision_policy=MatchDecisionPolicy(
+                minimum_relevance_score=Decimal("0.0000"),
+                minimum_rank_score=Decimal("0.0000"),
+            ),
+        )
+        async with self.database.connect() as connection:
+            second_match = (
+                await MatchTraceRepository().list_eligible_for_run(
+                    connection,
+                    second_matching.persistence.run.id,
+                )
+            )[0]
+
+        first, second = await asyncio.gather(
+            self._service().schedule_trace(first_match.id, rendered_at=NOW),
+            self._service().schedule_trace(
+                second_match.id,
+                rendered_at=NOW + timedelta(hours=1),
+            ),
+        )
+
+        self.assertEqual(int(first.created) + int(second.created), 1)
+        self.assertEqual(int(first.created is False) + int(second.created is False), 1)
+        async with self.database.connect() as connection:
+            delivery_count = await connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(personalized_deliveries)
+                .where(
+                    personalized_deliveries.c.opportunity_id
+                    == first_match.trace.opportunity_id,
+                    personalized_deliveries.c.search_profile_id == profile_ids[0],
+                    personalized_deliveries.c.profile_revision == 1,
+                )
+            )
+            delivery_job_count = await connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(durable_jobs)
+                .where(durable_jobs.c.job_type == PERSONALIZED_DELIVERY_JOB_TYPE)
+            )
+        self.assertEqual(delivery_count, 1)
+        self.assertEqual(delivery_job_count, 1)
+
+    async def test_legacy_trace_key_reuses_logical_delivery(self):
+        run_id, _, _ = await self._matched_run(external_user_ids=("7000017",))
+        service = self._service()
+        first = await service.schedule_run(run_id, rendered_at=NOW)
+        delivery = first.deliveries[0].delivery
+        async with self.database.connect() as connection:
+            input_sha256 = await connection.scalar(
+                sa.select(match_traces.c.input_sha256).where(
+                    match_traces.c.id == delivery.match_trace_id
+                )
+            )
+        legacy_payload = {
+            "delivery_schema_version": "personalized-delivery.v1",
+            "renderer_schema_version": delivery.renderer_schema_version,
+            "match_trace_id": str(delivery.match_trace_id),
+            "match_run_id": str(delivery.match_run_id),
+            "match_input_sha256": input_sha256,
+            "opportunity_id": str(delivery.opportunity_id),
+            "search_profile_id": str(delivery.search_profile_id),
+            "profile_revision": delivery.profile_revision,
+        }
+        legacy_key = sha256(
+            json.dumps(
+                legacy_payload,
+                ensure_ascii=True,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        async with self.database.transaction() as connection:
+            await connection.execute(
+                durable_jobs.update()
+                .where(durable_jobs.c.id == delivery.job_id)
+                .values(idempotency_key=legacy_key)
+            )
+            await connection.execute(
+                personalized_deliveries.update()
+                .where(personalized_deliveries.c.id == delivery.id)
+                .values(idempotency_key=legacy_key)
+            )
+
+        repeated = await service.schedule_run(run_id, rendered_at=NOW)
+
+        self.assertEqual(repeated.created_count, 0)
+        self.assertEqual(repeated.reused_count, 1)
+        async with self.database.connect() as connection:
+            delivery_count = await connection.scalar(
+                sa.select(sa.func.count()).select_from(personalized_deliveries)
+            )
+            delivery_job_count = await connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(durable_jobs)
+                .where(durable_jobs.c.job_type == PERSONALIZED_DELIVERY_JOB_TYPE)
+            )
+        self.assertEqual(delivery_count, 1)
+        self.assertEqual(delivery_job_count, 1)
+
+    async def test_non_primary_profile_cannot_schedule_existing_match(self):
+        run_id, profile_ids, _ = await self._matched_run(
+            external_user_ids=("7000018",)
+        )
+        async with self.database.transaction() as connection:
+            await connection.execute(
+                search_profiles.update()
+                .where(search_profiles.c.id == profile_ids[0])
+                .values(is_primary=False, is_active=True)
+            )
+
+        report = await self._service().schedule_run(run_id, rendered_at=NOW)
+
+        self.assertEqual(report.deliveries, ())
+        self.assertEqual(len(report.failures), 1)
+        self.assertEqual(report.failures[0].failure_code, "DeliverySchedulingError")
+        async with self.database.connect() as connection:
+            self.assertEqual(
+                await connection.scalar(
+                    sa.select(sa.func.count()).select_from(personalized_deliveries)
+                ),
+                0,
+            )
+
+    async def test_non_primary_profile_is_suppressed_before_send(self):
+        run_id, profile_ids, _ = await self._matched_run(
+            external_user_ids=("7000019",)
+        )
+        report = await self._service().schedule_run(run_id, rendered_at=NOW)
+        self.assertEqual(report.created_count, 1)
+        async with self.database.transaction() as connection:
+            await connection.execute(
+                search_profiles.update()
+                .where(search_profiles.c.id == profile_ids[0])
+                .values(is_primary=False, is_active=True)
+            )
+
+        sender = _RecordingSender()
+        await self._run_delivery_worker(
+            sender,
+            expected_delivery_status=DeliveryStatus.SUPPRESSED,
+            expected_count=1,
+        )
+
+        delivery = (await self._deliveries(run_id))[0]
+        self.assertEqual(delivery.failure_code, "ProfileIneligible")
+        self.assertEqual(sender.attempt_count, 0)
+
+    async def test_historical_active_profile_is_excluded_and_reconciled(self):
+        run_id, profile_ids, _ = await self._matched_run(
+            external_user_ids=("7000020",)
+        )
+        report = await self._service().schedule_run(run_id, rendered_at=NOW)
+        self.assertEqual(report.created_count, 1)
+        profile_service = ProfileConfirmationService(self.database)
+        draft = await profile_service.create_manual_draft(
+            platform="telegram",
+            external_user_id="7000020",
+            semantic_text="Python developer | Python | Telegram",
+            roles=("Python developer",),
+            skills=("Python",),
+            categories=("Telegram",),
+        )
+        confirmed = await profile_service.confirm(
+            platform="telegram",
+            external_user_id="7000020",
+            profile_id=draft.profile.id,
+            expected_revision=draft.profile.revision,
+        )
+        async with self.database.transaction() as connection:
+            await connection.execute(
+                search_profiles.update()
+                .where(search_profiles.c.id == profile_ids[0])
+                .values(is_active=True, is_primary=False)
+            )
+            await connection.execute(
+                search_profiles.update()
+                .where(search_profiles.c.id == confirmed.profile.id)
+                .values(
+                    is_active=True,
+                    is_primary=True,
+                    activated_at=NOW,
+                    deactivated_at=None,
+                )
+            )
+            active_profiles = await SearchProfileRepository().list_active(connection)
+
+        self.assertEqual(
+            tuple(profile.id for profile in active_profiles),
+            (confirmed.profile.id,),
+        )
+        await self._run_delivery_worker(
+            _RecordingSender(),
+            expected_delivery_status=DeliveryStatus.SUPPRESSED,
+            expected_count=1,
+        )
+
+        repeated = await profile_service.activate(
+            platform="telegram",
+            external_user_id="7000020",
+            profile_id=confirmed.profile.id,
+            expected_revision=confirmed.profile.revision,
+        )
+        self.assertFalse(repeated.trial_started)
+        profiles = await profile_service.list_profiles(
+            platform="telegram",
+            external_user_id="7000020",
+        )
+        by_id = {view.profile.id: view.profile for view in profiles}
+        self.assertFalse(by_id[profile_ids[0]].is_active)
+        self.assertFalse(by_id[profile_ids[0]].is_primary)
+        self.assertIsNotNone(by_id[profile_ids[0]].deactivated_at)
+        self.assertTrue(by_id[confirmed.profile.id].is_active)
+        self.assertTrue(by_id[confirmed.profile.id].is_primary)
 
     async def test_expired_trial_rejects_new_delivery_scheduling(self):
         run_id, _, user_ids = await self._matched_run(external_user_ids=("7000012",))
@@ -667,8 +954,7 @@ class PersonalizedDeliveryPostgresTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_feedback_keeps_multiple_search_profiles_isolated(self):
         run_id, profile_ids, user_ids = await self._matched_run(
-            external_user_ids=("7000011", "7000011"),
-            same_user=True,
+            external_user_ids=("7000011", "7000012"),
         )
         await self._service().schedule_run(run_id, rendered_at=NOW)
         await self._run_delivery_worker(
@@ -684,7 +970,7 @@ class PersonalizedDeliveryPostgresTest(unittest.IsolatedAsyncioTestCase):
                 actions.record(
                     delivery_id=delivery.id,
                     action_type=DeliveryActionType.NOT_SUITABLE,
-                    actor_external_user_id="7000011",
+                    actor_external_user_id=delivery.recipient_external_user_id,
                 )
                 for delivery in deliveries
             )
@@ -704,7 +990,7 @@ class PersonalizedDeliveryPostgresTest(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual({item.search_profile_id for item in feedback}, set(profile_ids))
-        self.assertEqual({item.user_id for item in feedback}, {user_ids[0]})
+        self.assertEqual({item.user_id for item in feedback}, set(user_ids))
         self.assertEqual({item.signal_scope for item in feedback}, {"personal_match"})
         self.assertEqual(source_signal.feedback_count, 2)
         self.assertEqual(source_signal.not_suitable_count, 2)
@@ -853,7 +1139,7 @@ class PersonalizedDeliveryPostgresTest(unittest.IsolatedAsyncioTestCase):
                         "revision": 1,
                         "confirmed_at": NOW - timedelta(minutes=2),
                         "is_active": True,
-                        "is_primary": index == 0,
+                        "is_primary": (not same_user or index == 0),
                         "activated_at": NOW - timedelta(minutes=1),
                     }
                     for index, (user_id, profile_id) in enumerate(
