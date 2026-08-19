@@ -22,6 +22,7 @@ from .discovery_runner import DiscoveryExecution, DiscoveryExecutionError, Disco
 from .observability import log_event
 from .persistence.database import Database
 from .persistence.source_repository import (
+    SourceNotFound,
     SourceRepository,
     SourceStatus,
 )
@@ -151,13 +152,22 @@ class AutonomousSourceDiscoveryRuntime:
 
         audit_pipeline = self._build_audit_pipeline()
         audits: list[SourceAuditRunResult] = []
-        candidate_ids = _merge_candidate_source_ids(
-            _candidate_source_ids(graph, web, profile_telegram),
-            (
-                ()
+        discovered_candidate_ids = _candidate_source_ids(graph, web, profile_telegram)
+        if self._config.source_discovery_audit_new_candidates_only:
+            discovered_candidate_ids = await self._filter_source_ids_by_status(
+                discovered_candidate_ids,
+                statuses=(SourceStatus.CANDIDATE,),
+            )
+        pending_candidate_ids = await self._pending_candidate_ids(
+            statuses=(
+                (SourceStatus.CANDIDATE,)
                 if self._config.source_discovery_audit_new_candidates_only
-                else await self._pending_candidate_ids()
-            ),
+                else None
+            )
+        )
+        candidate_ids = _merge_candidate_source_ids(
+            discovered_candidate_ids,
+            pending_candidate_ids,
         )
         if audit_pipeline is not None:
             audit_limit = min(
@@ -553,11 +563,19 @@ class AutonomousSourceDiscoveryRuntime:
             )
         return None
 
-    async def _pending_candidate_ids(self) -> tuple[int, ...]:
+    async def _pending_candidate_ids(
+        self,
+        *,
+        statuses: tuple[SourceStatus, ...] | None = None,
+    ) -> tuple[int, ...]:
         repository = SourceRepository()
         values: list[int] = []
+        selected_statuses = statuses or (
+            SourceStatus.CANDIDATE,
+            SourceStatus.NEEDS_REVIEW,
+        )
         async with self._database.connect() as connection:
-            for status in (SourceStatus.CANDIDATE, SourceStatus.NEEDS_REVIEW):
+            for status in selected_statuses:
                 records = await repository.list_sources(
                     connection,
                     status=status,
@@ -565,6 +583,26 @@ class AutonomousSourceDiscoveryRuntime:
                     limit=self._config.source_discovery_max_candidates,
                 )
                 values.extend(record.id for record in records if record.id not in values)
+        return tuple(values)
+
+    async def _filter_source_ids_by_status(
+        self,
+        source_ids: tuple[int, ...],
+        *,
+        statuses: tuple[SourceStatus, ...],
+    ) -> tuple[int, ...]:
+        if not source_ids:
+            return ()
+        repository = SourceRepository()
+        values: list[int] = []
+        async with self._database.connect() as connection:
+            for source_id in source_ids:
+                try:
+                    source = await repository.get(connection, source_id)
+                except SourceNotFound:
+                    continue
+                if source.lifecycle_status in statuses:
+                    values.append(source_id)
         return tuple(values)
 
 

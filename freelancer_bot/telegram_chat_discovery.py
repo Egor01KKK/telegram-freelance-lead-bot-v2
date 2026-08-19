@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter, defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
@@ -402,6 +402,7 @@ class TelegramChatDiscoveryService:
         screen_provider: TelegramChatScreenProvider | None = None,
         repository: TelegramChatDiscoveryRepository | None = None,
         source_repository: SourceRepository | None = None,
+        watch_candidate_callback: Callable[[int], Awaitable[None]] | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         if collector_account_id <= 0:
@@ -413,6 +414,7 @@ class TelegramChatDiscoveryService:
         self.governor = governor
         self.repository = repository or TelegramChatDiscoveryRepository()
         self.sources = source_repository or SourceRepository()
+        self.watch_candidate_callback = watch_candidate_callback
         self.logger = logger or LOGGER
         self.policy = TelegramChatScreenPolicy.from_config(config)
         self.screen_provider = screen_provider or self._provider_from_config(config)
@@ -663,6 +665,7 @@ class TelegramChatDiscoveryService:
 
         history_request_count = 0
         ai_call_count = 0
+        watch_source_id: int | None = None
         try:
             entity = _input_entity_for_peer(claim.peer)
             messages = await self.governor.run(
@@ -704,7 +707,7 @@ class TelegramChatDiscoveryService:
                     ),
                 )
                 if status == "WATCH":
-                    source_id = await self._persist_candidate(
+                    watch_source_id = await self._persist_candidate(
                         connection,
                         peer=peer,
                         provider=TELEGRAM_CHAT_DISCOVERY_PROVIDER,
@@ -713,7 +716,21 @@ class TelegramChatDiscoveryService:
                     peer = await self.repository.attach_source(
                         connection,
                         peer_id=peer.id,
-                        source_id=source_id,
+                        source_id=watch_source_id,
+                    )
+            if watch_source_id is not None and self.watch_candidate_callback is not None:
+                try:
+                    await self.watch_candidate_callback(watch_source_id)
+                except Exception as exc:
+                    # The candidate is already durable. A wake signal is only an
+                    # optimization; periodic discovery remains the correctness
+                    # fallback if the runtime is stopping or unavailable.
+                    log_event(
+                        self.logger,
+                        logging.WARNING,
+                        "telegram.chat_discovery.watch_wake_failed",
+                        source_id=watch_source_id,
+                        error=exc,
                     )
             log_event(
                 self.logger,

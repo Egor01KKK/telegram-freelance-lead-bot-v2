@@ -249,6 +249,8 @@ class LeadBot:
         self._source_discovery_task: asyncio.Task[None] | None = None
         self._source_discovery_first_cycle: asyncio.Event | None = None
         self._source_discovery_error: BaseException | None = None
+        self._source_discovery_wake = asyncio.Event()
+        self._source_discovery_caught_up_keys: set[object] = set()
         self._profile_discovery_runtime: TelegramProfileDiscoveryRuntime | None = None
         self._chat_discovery_runtime: TelegramChatDiscoveryRuntime | None = None
         self._chat_discovery_task: asyncio.Task[None] | None = None
@@ -351,7 +353,18 @@ class LeadBot:
                     )
 
                 if self.config.send_catch_up and self.config.catch_up_limit > 0:
-                    await self._catch_up(active_sources)
+                    caught_up_keys = getattr(
+                        self,
+                        "_source_discovery_caught_up_keys",
+                        set(),
+                    )
+                    await self._catch_up(
+                        tuple(
+                            item
+                            for item in active_sources
+                            if _source_identity_key(item[0]) not in caught_up_keys
+                        )
+                    )
 
                 await self.ingestion_runtime.wait_until_collector_stops(
                     self._wait_until_stopped()
@@ -1364,6 +1377,11 @@ class LeadBot:
                 config=self.config,
                 collector_account_id=collector_account_id,
                 governor=governor,
+                watch_candidate_callback=(
+                    self._signal_source_discovery_wake
+                    if getattr(self.config, "source_discovery_enabled", False)
+                    else None
+                ),
             )
             self._chat_discovery_runtime = TelegramChatDiscoveryRuntime(
                 service,
@@ -1439,12 +1457,17 @@ class LeadBot:
     async def _run_source_discovery_loop(self) -> None:
         interval = getattr(self.config, "source_discovery_interval_seconds", 6 * 60 * 60)
         first_cycle = getattr(self, "_source_discovery_first_cycle", None)
+        wake = getattr(self, "_source_discovery_wake", None)
         while True:
             try:
                 if self.source_discovery_runtime is None:
                     if first_cycle is not None:
                         first_cycle.set()
                     return
+                if wake is not None:
+                    # Consume a signal before the cycle. Signals arriving while
+                    # the cycle is running remain set for the next cycle.
+                    wake.clear()
                 cycle = await self.source_discovery_runtime.run_once()
                 if cycle.reload_required:
                     await self._reload_approved_sources()
@@ -1464,14 +1487,61 @@ class LeadBot:
                     "source.discovery.runtime_failed",
                     error=exc,
                 )
-            await asyncio.sleep(interval)
+            if wake is None:
+                await asyncio.sleep(interval)
+            else:
+                try:
+                    await asyncio.wait_for(wake.wait(), timeout=interval)
+                except asyncio.TimeoutError:
+                    pass
+                else:
+                    wake.clear()
 
-    async def _reload_approved_sources(self) -> None:
+    async def _signal_source_discovery_wake(self, source_id: int) -> None:
+        wake = getattr(self, "_source_discovery_wake", None)
+        if wake is None:
+            return
+        wake.set()
+        log_event(
+            LOGGER,
+            logging.INFO,
+            "source.discovery.wake_requested",
+            source_id=source_id,
+            reason="telegram_chat_watch",
+        )
+
+    async def _reload_approved_sources(
+        self,
+    ) -> list[tuple[TelegramCollectorSource | Source, object]]:
+        previous_active = getattr(self, "_active_sources", ())
+        previous_keys = {
+            _source_identity_key(source)
+            for source, _entity in previous_active
+        }
         snapshot = await self.source_adapter.list_for_session(self.user_client)
         self.collector_account_id = snapshot.collector_account.id
         self.sources = list(snapshot.sources)
         active = await self._register_source_handlers()
         self._active_sources = active
+        newly_active = [
+            item
+            for item in active
+            if _source_identity_key(item[0]) not in previous_keys
+        ]
+        if (
+            newly_active
+            and getattr(self.config, "send_catch_up", False)
+            and getattr(self.config, "catch_up_limit", 0) > 0
+        ):
+            await self._catch_up(newly_active)
+            caught_up_keys = getattr(self, "_source_discovery_caught_up_keys", None)
+            if caught_up_keys is None:
+                caught_up_keys = set()
+                self._source_discovery_caught_up_keys = caught_up_keys
+            caught_up_keys.update(
+                _source_identity_key(source)
+                for source, _entity in newly_active
+            )
         log_event(
             LOGGER,
             logging.INFO,
@@ -1479,7 +1549,9 @@ class LeadBot:
             collector_account_id=self.collector_account_id,
             source_count=len(self.sources),
             active_source_count=len(active),
+            newly_active_source_count=len(newly_active),
         )
+        return newly_active
 
     async def _stop_source_discovery_loop(self) -> None:
         task = getattr(self, "_source_discovery_task", None)
@@ -1760,6 +1832,13 @@ def _source_lookup(source: TelegramCollectorSource | Source) -> str:
 
 def _collector_source_id(source: TelegramCollectorSource | Source) -> int | None:
     return source.record.id if isinstance(source, TelegramCollectorSource) else None
+
+
+def _source_identity_key(source: TelegramCollectorSource | Source) -> tuple[str, object]:
+    source_id = _collector_source_id(source)
+    if source_id is not None:
+        return ("id", source_id)
+    return ("lookup", _source_lookup(source))
 
 
 def _source_updated_at(source: TelegramCollectorSource | Source) -> datetime | None:

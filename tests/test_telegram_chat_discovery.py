@@ -4,10 +4,12 @@ import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
 import unittest
+from unittest.mock import AsyncMock
 
 from telethon.tl.types import Channel
 
 from freelancer_bot.config import RuntimeConfig
+from freelancer_bot.app import LeadBot
 from freelancer_bot.persistence.collector_accounts import CollectorAccountRepository
 from freelancer_bot.persistence.database import Database
 from freelancer_bot.persistence.source_repository import SourceRepository, SourceStatus
@@ -19,6 +21,7 @@ from freelancer_bot.persistence.telegram_chat_discovery import (
 from freelancer_bot.persistence.telegram_operation_state import (
     TelegramCollectorOperationRepository,
 )
+from freelancer_bot.source_discovery_runtime import SourceDiscoveryCycle
 from freelancer_bot.telegram_chat_discovery import (
     ScreenClassification,
     ScreenResponse,
@@ -28,6 +31,7 @@ from freelancer_bot.telegram_chat_discovery import (
     telegram_chat_screen_response_schema,
 )
 from freelancer_bot.telegram_request_governor import TelegramRequestGovernor
+from freelancer_bot.telegram_collector import TelegramCollectorSource
 from postgres_support import TEST_DATABASE_URL, migrate_to_head, temporary_database
 
 
@@ -216,6 +220,11 @@ class TelegramChatDiscoveryPostgresTest(unittest.IsolatedAsyncioTestCase):
                 return tuple(SimpleNamespace(id=index, message="buyer demand") for index in range(1, 11))
 
         client = Client()
+        wake_calls = []
+
+        async def on_watch(source_id):
+            wake_calls.append(source_id)
+
         service = TelegramChatDiscoveryService(
             self.database,
             client,
@@ -229,6 +238,7 @@ class TelegramChatDiscoveryPostgresTest(unittest.IsolatedAsyncioTestCase):
                 random_uniform=lambda lower, _upper: lower,
             ),
             screen_provider=_ScreenProvider(),
+            watch_candidate_callback=on_watch,
         )
         first = await service.run_search(topic, search_budget=20, refresh_key="fixture")
         repeated = await service.run_search(topic, search_budget=20, refresh_key="fixture")
@@ -267,6 +277,7 @@ class TelegramChatDiscoveryPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(peer.dedup_bucket, "ALREADY_CANDIDATE")
         self.assertEqual(source.lifecycle_status, SourceStatus.CANDIDATE)
         self.assertTrue(any(item.provider == "telegram_chat_search" for item in lineage))
+        self.assertEqual(wake_calls, [source.id])
 
         async with self.database.transaction() as connection:
             second_topic = await self.repository.ensure_topic(
@@ -359,6 +370,153 @@ class TelegramChatDiscoveryPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(jobs.get(f"{SCREEN_JOB_TYPE}:completed", 0), 5)
         self.assertEqual(jobs.get(f"{SCREEN_JOB_TYPE}:queued", 0), 0)
         self.assertEqual(jobs.get(f"{SCREEN_JOB_TYPE}:running", 0), 0)
+
+    async def test_watch_wake_audit_reload_and_catchup_reaches_dispatch_boundary(self):
+        account_id = await self._account("watch-to-ingestion-fixture")
+
+        async with self.database.transaction() as connection:
+            peer, _created = await self.repository.upsert_peer(
+                connection,
+                canonical_peer_identity="peer:watch-to-ingestion",
+                peer_type="group",
+                telegram_peer_id=321,
+                telegram_access_hash=654,
+                display_name="Watch to ingestion",
+                username="watch_to_ingestion",
+                canonical_url="https://t.me/watch_to_ingestion",
+                access_type="public",
+                source_id=None,
+                dedup_bucket="GENUINELY_NEW",
+                collector_account_id=account_id,
+            )
+            await self.repository.enqueue_screen_job(
+                connection,
+                peer_id=peer.id,
+                attempt_number=1,
+            )
+
+        class Client:
+            async def get_messages(self, _entity, *, limit):
+                return tuple(
+                    SimpleNamespace(
+                        id=index,
+                        message="buyer needs a specialist",
+                        date=NOW,
+                    )
+                    for index in range(1, min(limit, 10) + 1)
+                )
+
+            async def iter_messages(self, _entity, *, limit):
+                for index in range(1, limit + 1):
+                    yield SimpleNamespace(id=10_000 + index, date=NOW)
+
+        client = Client()
+        bot = LeadBot.__new__(LeadBot)
+        bot.database = self.database
+        bot.user_client = client
+        bot.config = SimpleNamespace(
+            send_catch_up=True,
+            catch_up_limit=1,
+            catch_up_source_limit=1,
+            catch_up_newly_approved_sources_only=False,
+            fresh_run_started_at=None,
+            source_discovery_interval_seconds=3600,
+        )
+        bot._source_discovery_wake = asyncio.Event()
+        bot._source_discovery_caught_up_keys = set()
+        bot._active_sources = []
+        bot._source_discovery_first_cycle = None
+        bot._source_discovery_error = None
+        bot.collector_account_id = account_id
+        bot._dispatch_message = AsyncMock()
+
+        async def wake(source_id):
+            await bot._signal_source_discovery_wake(source_id)
+
+        service = TelegramChatDiscoveryService(
+            self.database,
+            client,
+            config=self._config(),
+            collector_account_id=account_id,
+            governor=TelegramRequestGovernor(
+                self.database,
+                account_id,
+                self._config(),
+                clock=lambda: NOW,
+                random_uniform=lambda lower, _upper: lower,
+            ),
+            screen_provider=_ScreenProvider(),
+            watch_candidate_callback=wake,
+        )
+        screened = await service.screen_peer(peer.id)
+        self.assertIsNotNone(screened)
+        self.assertTrue(bot._source_discovery_wake.is_set())
+
+        async with self.database.connect() as connection:
+            persisted_peer = await self.repository.get_peer(connection, peer.id)
+        self.assertIsNotNone(persisted_peer.source_id)
+
+        class FakeAuditingRuntime:
+            def __init__(self):
+                self.calls = 0
+
+            async def run_once(self):
+                self.calls += 1
+                async with self.database.transaction() as connection:
+                    await SourceRepository().transition(
+                        connection,
+                        persisted_peer.source_id,
+                        SourceStatus.APPROVED,
+                        reason="fake existing audit pipeline approved fixture",
+                    )
+                bot.source_discovery_runtime = None
+                bot._source_discovery_wake.set()
+                return SourceDiscoveryCycle(None, None, (), None, True)
+
+        runtime = FakeAuditingRuntime()
+        runtime.database = self.database
+        bot.source_discovery_runtime = runtime
+
+        class ApprovedSourceAdapter:
+            def __init__(self):
+                self.active_source = None
+
+            async def list_for_session(self, _client):
+                async with self.database.connect() as connection:
+                    account = await CollectorAccountRepository().get(
+                        connection,
+                        account_id,
+                    )
+                    approved = await SourceRepository().list_sources(
+                        connection,
+                        status=SourceStatus.APPROVED,
+                        platform="telegram",
+                    )
+                source = approved[0]
+                self.active_source = TelegramCollectorSource(source, source.handle)
+                return SimpleNamespace(
+                    collector_account=account,
+                    sources=(self.active_source,),
+                )
+
+        adapter = ApprovedSourceAdapter()
+        adapter.database = self.database
+        bot.source_adapter = adapter
+
+        async def register_sources():
+            return [(adapter.active_source, object())]
+
+        bot._register_source_handlers = AsyncMock(side_effect=register_sources)
+        task = asyncio.create_task(bot._run_source_discovery_loop())
+        await asyncio.wait_for(task, timeout=2)
+
+        self.assertEqual(runtime.calls, 1)
+        bot._register_source_handlers.assert_awaited_once_with()
+        bot._dispatch_message.assert_awaited_once()
+        self.assertEqual(
+            bot._dispatch_message.await_args.kwargs["origin"],
+            "catch_up",
+        )
 
     async def test_backpressure_pauses_new_topic_searches(self):
         account_id = await self._account("chat-discovery-backpressure")
