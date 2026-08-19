@@ -57,6 +57,10 @@ class MatchGenerationOutcome:
     report: MatchGenerationReport
 
 
+class StaleSearchProfileRevision(RuntimeError):
+    pass
+
+
 class CandidateMatchingService:
     def __init__(
         self,
@@ -179,15 +183,33 @@ class CandidateMatchingService:
         structured_policy: StructuredScoringPolicy | None = None,
         semantic_policy: SemanticMatchingPolicy | None = None,
         decision_policy: MatchDecisionPolicy | None = None,
+        profile_id: UUID | None = None,
+        profile_revision: int | None = None,
     ) -> MatchGenerationOutcome:
         if len(set(opportunity_ids)) != len(opportunity_ids):
             raise ValueError("opportunity_ids must be unique")
+        if profile_id is None and profile_revision is not None:
+            raise ValueError("profile_id is required when profile_revision is set")
         started_at = monotonic()
         selected_structured_policy = structured_policy or StructuredScoringPolicy()
         selected_semantic_policy = semantic_policy or SemanticMatchingPolicy()
         try:
             async with self._database.transaction() as connection:
                 profiles = await self._profiles.list_active(connection)
+                if profile_id is not None:
+                    profiles = tuple(
+                        profile
+                        for profile in profiles
+                        if profile.id == profile_id
+                        and (
+                            profile_revision is None
+                            or profile.revision == profile_revision
+                        )
+                    )
+                    if not profiles:
+                        raise StaleSearchProfileRevision(
+                            "requested SearchProfile revision is no longer active"
+                        )
                 scoring_inputs: list[MatchScoringInput] = []
                 for opportunity_id in opportunity_ids:
                     opportunity = await self._opportunities.get(

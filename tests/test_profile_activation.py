@@ -23,6 +23,10 @@ from freelancer_bot.persistence.search_profiles import (
 )
 from freelancer_bot.persistence.telegram_chat_discovery import SEARCH_JOB_TYPE
 from freelancer_bot.profile_confirmation import ProfileConfirmationService
+from freelancer_bot.profile_rematch import (
+    PROFILE_REMATCH_JOB_TYPE,
+    profile_rematch_job_key,
+)
 from freelancer_bot.telegram_onboarding import TelegramProfileOnboarding
 from freelancer_bot.telegram_profile_discovery import (
     TELEGRAM_PROFILE_DISCOVERY_JOB_TYPE,
@@ -96,6 +100,20 @@ class SearchProfileActivationIntegrationTest(unittest.IsolatedAsyncioTestCase):
                 )
             ).mappings().all()
         self.assertEqual(len(discovery_jobs), 1)
+        async with self.database.connect() as connection:
+            rematch_jobs = (
+                await connection.execute(
+                    sa.select(durable_jobs).where(
+                        durable_jobs.c.job_type == PROFILE_REMATCH_JOB_TYPE,
+                        durable_jobs.c.idempotency_key
+                        == profile_rematch_job_key(
+                            activated.profile.profile.id,
+                            activated.profile.profile.revision,
+                        ),
+                    )
+                )
+            ).mappings().all()
+        self.assertEqual(len(rematch_jobs), 1)
 
         repeated = await self.service.activate(
             platform="telegram",
@@ -126,8 +144,22 @@ class SearchProfileActivationIntegrationTest(unittest.IsolatedAsyncioTestCase):
                 )
             )
         self.assertEqual(discovery_job_count, 1)
+        async with self.database.connect() as connection:
+            rematch_job_count = await connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(durable_jobs)
+                .where(
+                    durable_jobs.c.job_type == PROFILE_REMATCH_JOB_TYPE,
+                    durable_jobs.c.idempotency_key
+                    == profile_rematch_job_key(
+                        activated.profile.profile.id,
+                        activated.profile.profile.revision,
+                    ),
+                )
+            )
+        self.assertEqual(rematch_job_count, 1)
 
-    async def test_multiple_profiles_can_remain_active_with_one_primary(self):
+    async def test_activating_profile_deactivates_previous_active_profile(self):
         first = await self._confirm(
             "multi-profile",
             await self._draft("multi-profile", suffix="first"),
@@ -155,13 +187,50 @@ class SearchProfileActivationIntegrationTest(unittest.IsolatedAsyncioTestCase):
         by_id = {view.profile.id: view.profile for view in profiles}
 
         self.assertEqual(len(profiles), 2)
-        self.assertTrue(by_id[first.profile.id].is_active)
+        self.assertFalse(by_id[first.profile.id].is_active)
         self.assertFalse(by_id[first.profile.id].is_primary)
+        self.assertIsNotNone(by_id[first.profile.id].deactivated_at)
         self.assertTrue(by_id[second.profile.id].is_active)
         self.assertTrue(by_id[second.profile.id].is_primary)
         self.assertTrue(first_active.trial_started)
         self.assertFalse(second_active.trial_started)
+        self.assertEqual(sum(profile.is_active for profile in by_id.values()), 1)
         self.assertEqual(sum(profile.is_primary for profile in by_id.values()), 1)
+
+    async def test_activating_profile_does_not_deactivate_another_users_profile(self):
+        first = await self._confirm(
+            "isolated-user-one",
+            await self._draft("isolated-user-one", suffix="first"),
+        )
+        second = await self._confirm(
+            "isolated-user-two",
+            await self._draft("isolated-user-two", suffix="second"),
+        )
+        await self.service.activate(
+            platform="telegram",
+            external_user_id="isolated-user-one",
+            profile_id=first.profile.id,
+            expected_revision=first.profile.revision,
+        )
+        await self.service.activate(
+            platform="telegram",
+            external_user_id="isolated-user-two",
+            profile_id=second.profile.id,
+            expected_revision=second.profile.revision,
+        )
+
+        first_profiles = await self.service.list_profiles(
+            platform="telegram",
+            external_user_id="isolated-user-one",
+        )
+        second_profiles = await self.service.list_profiles(
+            platform="telegram",
+            external_user_id="isolated-user-two",
+        )
+        self.assertTrue(first_profiles[0].profile.is_active)
+        self.assertTrue(first_profiles[0].profile.is_primary)
+        self.assertTrue(second_profiles[0].profile.is_active)
+        self.assertTrue(second_profiles[0].profile.is_primary)
 
     async def test_deactivation_and_reactivation_preserve_trial_and_first_activation(self):
         confirmed = await self._confirm(
@@ -238,8 +307,9 @@ class SearchProfileActivationIntegrationTest(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(sum(outcome.trial_started for outcome in outcomes), 1)
-        self.assertEqual(sum(view.profile.is_active for view in profiles), 2)
+        self.assertEqual(sum(view.profile.is_active for view in profiles), 1)
         self.assertEqual(sum(view.profile.is_primary for view in profiles), 1)
+        self.assertEqual(sum(view.profile.deactivated_at is not None for view in profiles), 1)
         self.assertIsNotNone(
             (await self._user("concurrent-activation")).trial_started_at
         )

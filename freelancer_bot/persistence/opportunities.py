@@ -916,6 +916,46 @@ class CanonicalOpportunityRepository:
             records.append(await self._record_with_links(connection, row))
         return tuple(records)
 
+    async def list_recent_for_matching(
+        self,
+        connection: AsyncConnection,
+        *,
+        as_of: datetime,
+        maximum_age_seconds: int,
+        limit: int = 500,
+    ) -> tuple[CanonicalOpportunityRecord, ...]:
+        if as_of.tzinfo is None or as_of.utcoffset() is None:
+            raise ValueError("as_of must include a timezone")
+        if maximum_age_seconds < 60:
+            raise ValueError("maximum_age_seconds must be at least 60")
+        if not 1 <= limit <= 500:
+            raise ValueError("limit must be between 1 and 500")
+        cutoff = as_of - timedelta(seconds=maximum_age_seconds)
+        excluded_statuses = (
+            OpportunityLifecycleStatus.CLOSED.value,
+            OpportunityLifecycleStatus.RETRACTED.value,
+            OpportunityLifecycleStatus.SUPPRESSED.value,
+        )
+        rows = (
+            await connection.execute(
+                sa.select(opportunities)
+                .where(
+                    opportunities.c.last_seen_at >= cutoff,
+                    opportunities.c.last_seen_at <= as_of,
+                    opportunities.c.lifecycle_status.not_in(excluded_statuses),
+                )
+                .order_by(
+                    opportunities.c.last_seen_at.desc(),
+                    opportunities.c.id,
+                )
+                .limit(limit)
+            )
+        ).mappings().all()
+        records = []
+        for row in rows:
+            records.append(await self._record_with_links(connection, row))
+        return tuple(records)
+
     async def list_recent(
         self,
         connection: AsyncConnection,

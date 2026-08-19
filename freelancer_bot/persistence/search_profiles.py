@@ -532,10 +532,12 @@ class SearchProfileRepository:
             .where(
                 search_profiles.c.user_id == user_id,
                 search_profiles.c.id != profile_id,
-                search_profiles.c.is_primary.is_(True),
+                search_profiles.c.is_active.is_(True),
             )
             .values(
+                is_active=False,
                 is_primary=False,
+                deactivated_at=sa.func.now(),
                 revision=search_profiles.c.revision + 1,
                 updated_at=sa.func.now(),
             )

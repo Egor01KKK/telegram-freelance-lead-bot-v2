@@ -29,6 +29,7 @@ from .persistence.database import Database
 from .persistence.jobs import DurableJobRepository
 from .persistence.ai_telemetry import PostgreSQLAICallRecorder
 from .persistence.raw_messages import RAW_MESSAGE_JOB_TYPE
+from .profile_rematch import PROFILE_REMATCH_JOB_TYPE, ProfileRematchJobProcessor
 from .worker import DurableWorker, WorkerOptions
 from .global_source_library_runtime import (
     DiscoveryCampaignPlanProcessor,
@@ -160,6 +161,11 @@ def _build_worker(
             logger=logger,
         )
         handlers[MATCHING_DELIVERY_JOB_TYPE] = MatchingDeliveryJobProcessor(
+            database,
+            config,
+            logger=logger,
+        )
+        handlers[PROFILE_REMATCH_JOB_TYPE] = ProfileRematchJobProcessor(
             database,
             config,
             logger=logger,

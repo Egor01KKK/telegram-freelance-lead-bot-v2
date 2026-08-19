@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from decimal import Decimal
 from datetime import datetime, timezone
+from decimal import Decimal
 from html import escape
 from uuid import UUID
 
@@ -20,6 +20,11 @@ from .persistence.search_profiles import (
 from .profile_discovery import (
     ProfileDiscoveryIntentRepository,
     build_profile_discovery_intent,
+)
+from .profile_rematch import (
+    PROFILE_REMATCH_JOB_TYPE,
+    PROFILE_REMATCH_MAX_ATTEMPTS,
+    profile_rematch_job_key,
 )
 from .persistence.telegram_chat_discovery import (
     TelegramChatDiscoveryRepository,
@@ -262,6 +267,16 @@ class ProfileConfirmationService:
                 profile_id=profile_id,
                 user_id=user.id,
                 expected_revision=expected_revision,
+            )
+            await self._jobs.enqueue(
+                connection,
+                job_type=PROFILE_REMATCH_JOB_TYPE,
+                idempotency_key=profile_rematch_job_key(
+                    outcome.profile.id,
+                    outcome.profile.revision,
+                ),
+                max_attempts=PROFILE_REMATCH_MAX_ATTEMPTS,
+                correlation_id=outcome.profile.id,
             )
             intent = build_profile_discovery_intent(outcome.profile)
             await self._discovery_intents.ensure(
