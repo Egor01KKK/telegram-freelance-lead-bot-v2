@@ -36,12 +36,147 @@ TELEGRAM_PROFILE_DISCOVERY_PROVIDER = "telegram_global_profile"
 TELEGRAM_PROFILE_DISCOVERY_KIND = "telegram_global_search"
 TELEGRAM_PROFILE_DISCOVERY_JOB_TYPE = "profile.telegram_discovery.v1"
 TELEGRAM_PROFILE_DISCOVERY_JOB_KEY_PREFIX = "profile-telegram-discovery"
-DEFAULT_MAX_QUERIES = 8
-MAX_QUERY_COUNT = 24
+DEFAULT_MAX_QUERIES = 16
+MAX_QUERY_COUNT = 20
 DEFAULT_RESULTS_PER_QUERY = 20
 MAX_RESULTS_PER_QUERY = 50
 DEFAULT_MAX_TOTAL_HITS = 600
 MAX_HIT_TEXT_LENGTH = 12000
+
+
+_ROLE_QUERY_TEMPLATES: dict[str, tuple[tuple[str, str, str, str], ...]] = {
+    "ru": (
+        ("ROLE_DIRECT", "direct", "role_need", "нужен {term}"),
+        ("ROLE_DIRECT", "direct", "role_need", "ищу {term}"),
+        ("ROLE_DIRECT", "direct", "role_need", "ищем {term}"),
+        ("ROLE_REQUIRED", "direct", "role_need", "требуется {term}"),
+        ("ROLE_VACANCY", "vacancy", "role_need", "вакансия {term}"),
+        ("ROLE_PROJECT", "project", "role_need", "проект для {term}"),
+        (
+            "ROLE_RECOMMENDATION",
+            "recommendation",
+            "role_need",
+            "посоветуйте {term}",
+        ),
+        ("ROLE_CONTRACT", "contract", "role_need", "нужен подрядчик {term}"),
+        ("ROLE_DIRECT", "direct", "role_need", "ищу исполнителя {term}"),
+        ("ROLE_VACANCY", "vacancy", "role_need", "нужен специалист {term}"),
+    ),
+    "en": (
+        ("ROLE_DIRECT", "direct", "role_need", "looking for {term}"),
+        ("ROLE_DIRECT", "direct", "role_need", "need a {term}"),
+        ("ROLE_DIRECT", "direct", "role_need", "hiring {term}"),
+        ("ROLE_REQUIRED", "direct", "role_need", "{term} needed"),
+        ("ROLE_VACANCY", "vacancy", "role_need", "vacancy: {term}"),
+        ("ROLE_PROJECT", "project", "role_need", "{term} for project"),
+        (
+            "ROLE_RECOMMENDATION",
+            "recommendation",
+            "role_need",
+            "recommend a {term}",
+        ),
+        ("ROLE_CONTRACT", "contract", "role_need", "need a contractor: {term}"),
+        ("ROLE_PROJECT", "project", "role_need", "freelance {term}"),
+        ("ROLE_CONTRACT", "contract", "role_need", "contract {term}"),
+    ),
+}
+
+_SERVICE_QUERY_TEMPLATES: dict[str, tuple[tuple[str, str, str, str], ...]] = {
+    "ru": (
+        (
+            "SERVICE_DIRECT",
+            "direct",
+            "service_need",
+            "нужен специалист по {term}",
+        ),
+        (
+            "SERVICE_DIRECT",
+            "direct",
+            "service_need",
+            "ищу специалиста по {term}",
+        ),
+        (
+            "SERVICE_DIRECT",
+            "direct",
+            "service_need",
+            "кто может сделать {term}",
+        ),
+        (
+            "SERVICE_DIRECT",
+            "direct",
+            "service_need",
+            "нужен человек на {term}",
+        ),
+        (
+            "SERVICE_DIRECT",
+            "direct",
+            "service_need",
+            "требуется помощь с {term}",
+        ),
+        ("SERVICE_PROJECT", "project", "service_need", "проект: {term}"),
+        ("SERVICE_VACANCY", "vacancy", "service_need", "вакансия: {term}"),
+        (
+            "SERVICE_RECOMMENDATION",
+            "recommendation",
+            "service_need",
+            "посоветуйте специалиста по {term}",
+        ),
+        (
+            "SERVICE_CONTRACT",
+            "contract",
+            "service_need",
+            "ищу подрядчика по {term}",
+        ),
+        ("SERVICE_DIRECT", "direct", "service_need", "нужно заказать {term}"),
+    ),
+    "en": (
+        (
+            "SERVICE_DIRECT",
+            "direct",
+            "service_need",
+            "looking for a specialist in {term}",
+        ),
+        (
+            "SERVICE_DIRECT",
+            "direct",
+            "service_need",
+            "need help with {term}",
+        ),
+        (
+            "SERVICE_DIRECT",
+            "direct",
+            "service_need",
+            "{term} specialist needed",
+        ),
+        (
+            "SERVICE_DIRECT",
+            "direct",
+            "service_need",
+            "looking for someone for {term}",
+        ),
+        (
+            "SERVICE_DIRECT",
+            "direct",
+            "service_need",
+            "who can handle {term}",
+        ),
+        ("SERVICE_PROJECT", "project", "service_need", "project: {term}"),
+        ("SERVICE_VACANCY", "vacancy", "service_need", "vacancy: {term}"),
+        (
+            "SERVICE_RECOMMENDATION",
+            "recommendation",
+            "service_need",
+            "recommend a specialist for {term}",
+        ),
+        (
+            "SERVICE_CONTRACT",
+            "contract",
+            "service_need",
+            "need a contractor for {term}",
+        ),
+        ("SERVICE_PROJECT", "project", "service_need", "freelance {term}"),
+    ),
+}
 
 
 class TelegramGlobalSearchPageCache:
@@ -148,107 +283,108 @@ def build_telegram_profile_search_queries(
     """Build bounded buyer-language queries from a persisted profile intent."""
 
     if not 1 <= max_queries <= MAX_QUERY_COUNT:
-        raise ValueError("max_queries must be between 1 and 24")
+        raise ValueError("max_queries must be between 1 and 20")
     languages = _language_order(getattr(intent, "languages", ()))
-    technical_term = _technical_term(intent)
-    templates = (
-        (
-            "DIRECT_ROLE",
-            "direct",
-            "buyer_need",
-            (
-                ("ru", f"ищу {technical_term} разработчика"),
-                ("en", f"looking for {technical_term} developer"),
-                ("ru", f"нужен {technical_term} разработчик"),
-            ),
-        ),
-        (
-            "DIRECT_SERVICE",
-            "direct",
-            "service_need",
-            (
-                ("ru", "нужен разработчик Telegram бота"),
-                ("en", "Telegram bot developer needed"),
-                ("en", "who can build a Telegram bot"),
-            ),
-        ),
-        (
-            "PROBLEM_TO_SOLVE",
-            "buyer_habitat",
-            "problem_need",
-            (
-                ("ru", "нужно автоматизировать заявки"),
-                ("en", "need automation for business requests"),
-                ("ru", "нужен парсер данных"),
-            ),
-        ),
-        (
-            "INTEGRATION",
-            "buyer_habitat",
-            "integration_need",
-            (
-                ("ru", "интеграция Telegram с CRM"),
-                ("en", "Telegram CRM integration"),
-                ("en", "connect Telegram to CRM"),
-            ),
-        ),
-        (
-            "RECOMMENDATION",
-            "buyer_habitat",
-            "recommendation_request",
-            (
-                ("ru", "посоветуйте разработчика Telegram"),
-                ("en", "recommend a Telegram developer"),
-                ("ru", "кто может сделать бота"),
-            ),
-        ),
-        (
-            "PROJECT_OUTSOURCE",
-            "buyer_habitat",
-            "project_need",
-            (
-                ("ru", "разработчик на проект Python"),
-                ("en", "Telegram developer freelance"),
-                ("en", "backend contractor Python"),
-            ),
-        ),
-        (
-            "VACANCY_PART_TIME",
-            "buyer_habitat",
-            "vacancy_need",
-            (
-                ("ru", "ищем Python разработчика удаленно"),
-                ("en", "Telegram bot developer vacancy"),
-                ("ru", "Python разработчик на part time"),
-            ),
-        ),
-        (
-            "MINI_APP_SPECIFIC_SERVICE",
-            "direct",
-            "specific_service_need",
-            (
-                ("ru", "разработчик Telegram mini app"),
-                ("en", "Telegram web app developer"),
-                ("ru", "разработчик Telegram web app"),
-            ),
-        ),
+    roles = _profile_terms(intent, "roles", "role")
+    services = _profile_terms(intent, "services", "categories", "service")
+    if not services:
+        services = _profile_terms(intent, "industries")
+    supplemental_services = tuple(
+        term
+        for term in _profile_terms(
+            intent,
+            "work_types",
+            "formats",
+            "format",
+        )
+        if term.casefold()
+        not in {
+            "one_off_order",
+            "part_time_contractor",
+            "project",
+            "vacancy",
+            "remote",
+            "hybrid",
+            "on_site",
+        }
     )
+    services = tuple(dict.fromkeys((*services, *supplemental_services)))
+    skills = _profile_terms(intent, "skills")
+    if not roles and not services and not skills:
+        return ()
+
     values: list[TelegramProfileSearchQuery] = []
-    for family, angle, query_kind, variants in templates:
-        for language, text in variants:
-            if language not in languages:
-                continue
-            values.append(
-                TelegramProfileSearchQuery(
-                    text=text,
-                    language=language,
-                    angle=angle,
-                    query_kind=query_kind,
-                    family=family,
-                )
+    seen: set[str] = set()
+
+    def add_query(
+        language: str,
+        family: str,
+        angle: str,
+        query_kind: str,
+        template: str,
+        term: str,
+    ) -> bool:
+        text = " ".join(template.format(term=term).split())
+        identity = text.casefold()
+        if identity in seen:
+            return False
+        seen.add(identity)
+        values.append(
+            TelegramProfileSearchQuery(
+                text=text,
+                language=language,
+                angle=angle,
+                query_kind=query_kind,
+                family=family,
             )
-            if len(values) >= max_queries:
+        )
+        return len(values) >= max_queries
+
+    groups = (
+        ("role", roles, _ROLE_QUERY_TEMPLATES),
+        ("service", services, _SERVICE_QUERY_TEMPLATES),
+        ("skill", skills, _SERVICE_QUERY_TEMPLATES),
+    )
+
+    # Reserve one direct query per populated profile field and language so
+    # mixed profiles retain role, service and skill signals under the cap.
+    for language in languages:
+        for group_name, terms, template_map in groups:
+            if not terms:
+                continue
+            family, angle, query_kind, template = template_map[language][0]
+            if group_name == "skill":
+                family = "SKILL_SERVICE"
+                query_kind = "skill_service_need"
+            if add_query(language, family, angle, query_kind, template, terms[0]):
                 return tuple(values)
+
+    template_count = max(
+        len(_ROLE_QUERY_TEMPLATES[language])
+        for language in languages
+    )
+    for template_index in range(template_count):
+        for language in languages:
+            for group_name, terms, template_map in groups:
+                if not terms:
+                    continue
+                templates = template_map[language]
+                if template_index >= len(templates):
+                    continue
+                family, angle, query_kind, template = templates[template_index]
+                if group_name == "skill":
+                    family = "SKILL_SERVICE"
+                    query_kind = "skill_service_need"
+                for term in terms:
+                    if add_query(
+                        language,
+                        family,
+                        angle,
+                        query_kind,
+                        template,
+                        term,
+                    ):
+                        return tuple(values)
     return tuple(values)
 
 
@@ -718,21 +854,50 @@ def profile_discovery_job_key(profile_id: Any, profile_revision: int) -> str:
 
 def _language_order(values: Sequence[Any]) -> tuple[str, ...]:
     result: list[str] = []
-    for value in values:
-        text = str(value).casefold()
-        language = "ru" if text.startswith("ru") or any("а" <= char <= "я" for char in text) else "en"
+    for value in _iter_profile_values(values):
+        text = _term_text(value).casefold()
+        language = (
+            "ru"
+            if text.startswith(("ru", "рус"))
+            or any("а" <= char <= "я" for char in text)
+            else "en"
+        )
         if language not in result:
             result.append(language)
     return tuple(result) or ("en", "ru")
 
 
-def _technical_term(intent: Any) -> str:
-    values = tuple(getattr(intent, "skills", ())) + tuple(getattr(intent, "roles", ()))
-    for value in values:
-        text = str(value).strip()
-        if text and any(char.isascii() for char in text):
-            return text
-    return "Python"
+def _profile_terms(intent: Any, *field_names: str) -> tuple[str, ...]:
+    terms: list[str] = []
+    seen: set[str] = set()
+    for field_name in field_names:
+        for value in _iter_profile_values(getattr(intent, field_name, ())):
+            text = " ".join(_term_text(value).split()).strip(" ,;")
+            if not text:
+                continue
+            identity = text.casefold()
+            if identity in seen:
+                continue
+            seen.add(identity)
+            terms.append(text)
+    return tuple(terms)
+
+
+def _iter_profile_values(value: Any) -> tuple[Any, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, (str, bytes)):
+        return (value,)
+    try:
+        return tuple(value)
+    except TypeError:
+        return (value,)
+
+
+def _term_text(value: Any) -> str:
+    candidate = getattr(value, "value", value)
+    nested = getattr(candidate, "value", candidate)
+    return str(nested).strip()
 
 
 def _source_chat(message: Any) -> Any | None:

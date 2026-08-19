@@ -76,33 +76,175 @@ class TelegramProfileDiscoveryTest(unittest.IsolatedAsyncioTestCase):
     def test_queries_are_bounded_and_cover_both_buyer_languages(self):
         queries = build_telegram_profile_search_queries(self._intent())
 
-        self.assertEqual(len(queries), 8)
+        self.assertEqual(len(queries), 16)
         self.assertEqual({query.language for query in queries}, {"ru", "en"})
         self.assertTrue(any("looking for" in query.text for query in queries))
         self.assertTrue(any("ищу" in query.text for query in queries))
         self.assertTrue(all("community" not in query.text for query in queries))
 
-    def test_full_quality_matrix_has_eight_diverse_families(self):
+    def test_query_count_is_hard_bounded_and_queries_are_unique(self):
         queries = build_telegram_profile_search_queries(
             self._intent(),
-            max_queries=24,
+            max_queries=20,
         )
 
-        self.assertEqual(len(queries), 24)
+        self.assertEqual(len(queries), 20)
         self.assertEqual(
-            {query.family for query in queries},
-            {
-                "DIRECT_ROLE",
-                "DIRECT_SERVICE",
-                "PROBLEM_TO_SOLVE",
-                "INTEGRATION",
-                "RECOMMENDATION",
-                "PROJECT_OUTSOURCE",
-                "VACANCY_PART_TIME",
-                "MINI_APP_SPECIFIC_SERVICE",
-            },
+            len({query.text.casefold() for query in queries}),
+            len(queries),
         )
         self.assertEqual({query.language for query in queries}, {"ru", "en"})
+
+    def test_empty_profile_does_not_invent_an_unrelated_search_term(self):
+        intent = SimpleNamespace(
+            languages=("ru", "en"),
+            roles=(),
+            services=(),
+            skills=(),
+            industries=(),
+        )
+
+        self.assertEqual(build_telegram_profile_search_queries(intent), ())
+
+    def test_query_cap_rejects_values_above_twenty(self):
+        with self.assertRaises(ValueError):
+            build_telegram_profile_search_queries(self._intent(), max_queries=21)
+
+    def test_meaningful_format_terms_are_used_without_generic_work_type_noise(self):
+        intent = SimpleNamespace(
+            languages=("en",),
+            roles=(),
+            services=(),
+            skills=(),
+            industries=(),
+            work_types=("project", "short-form video"),
+            formats=("Reels",),
+        )
+
+        texts = {
+            query.text.casefold()
+            for query in build_telegram_profile_search_queries(intent)
+        }
+
+        self.assertTrue(any("short-form video" in text for text in texts))
+        self.assertTrue(any("reels" in text for text in texts))
+        self.assertFalse(any("specialist in project" in text for text in texts))
+
+    def test_profile_matrix_uses_buyer_intent_and_stays_profile_specific(self):
+        fixtures = {
+            "python_telegram": {
+                "roles": ("Python-разработчик",),
+                "services": ("Telegram-боты",),
+                "skills": ("Python", "Telethon"),
+                "languages": ("ru", "en"),
+                "required": ("python", "telegram"),
+            },
+            "video_editor": {
+                "roles": ("Video Editor",),
+                "services": ("YouTube editing", "short-form video"),
+                "skills": ("Premiere", "After Effects", "Reels"),
+                "languages": ("en", "ru"),
+                "required": ("video editor", "youtube"),
+            },
+            "product_designer": {
+                "roles": ("Product Designer", "UX/UI Designer"),
+                "services": ("product design", "user research"),
+                "skills": ("Figma",),
+                "languages": ("en", "ru"),
+                "required": ("product designer", "product design"),
+            },
+            "copywriter": {
+                "roles": ("Copywriter",),
+                "services": ("website copy", "email sequences"),
+                "skills": ("SEO writing",),
+                "languages": ("en", "ru"),
+                "required": ("copywriter", "website copy"),
+            },
+            "performance_marketer": {
+                "roles": ("Performance Marketer",),
+                "services": ("paid ads", "Google Ads"),
+                "skills": ("analytics",),
+                "languages": ("en", "ru"),
+                "required": ("performance marketer", "paid ads"),
+            },
+            "three_d_cgi": {
+                "roles": ("3D Artist", "CGI Artist"),
+                "services": ("3D modeling", "CGI rendering"),
+                "skills": ("Blender",),
+                "languages": ("en", "ru"),
+                "required": ("3d artist", "cgi"),
+            },
+        }
+
+        for name, fixture in fixtures.items():
+            intent = SimpleNamespace(**fixture)
+            first = build_telegram_profile_search_queries(intent, max_queries=20)
+            second = build_telegram_profile_search_queries(intent, max_queries=20)
+            texts = tuple(query.text.casefold() for query in first)
+
+            self.assertGreaterEqual(len(first), 10, name)
+            self.assertLessEqual(len(first), 20, name)
+            self.assertEqual(first, second, name)
+            self.assertEqual(len(texts), len(set(texts)), name)
+            self.assertTrue(
+                all(
+                    any(keyword in text for text in texts)
+                    for keyword in fixture["required"]
+                ),
+                name,
+            )
+            self.assertTrue(
+                all(
+                    any(
+                        marker in text
+                        for marker in (
+                            "нужен",
+                            "ищу",
+                            "ищем",
+                            "кто может",
+                            "требуется",
+                            "вакансия",
+                            "проект",
+                            "посоветуйте",
+                            "looking for",
+                            "need",
+                            "hiring",
+                            "needed",
+                            "recommend",
+                            "contract",
+                            "freelance",
+                        )
+                    )
+                    for text in texts
+                ),
+                name,
+            )
+            if name != "python_telegram":
+                self.assertFalse(any("python" in text for text in texts), name)
+                self.assertFalse(any("telegram" in text for text in texts), name)
+                self.assertFalse(any("automation" in text for text in texts), name)
+                self.assertFalse(any("developer" in text for text in texts), name)
+            if name == "video_editor":
+                self.assertFalse(any("video editor developer" in text for text in texts))
+
+    def test_profile_matrix_queries_are_printable_for_manual_quality_review(self):
+        fixtures = (
+            ("python_telegram", ("Python-разработчик",), ("Telegram-боты",)),
+            ("video_editor", ("Video Editor",), ("YouTube editing",)),
+            ("product_designer", ("Product Designer",), ("product design",)),
+            ("copywriter", ("Copywriter",), ("website copy",)),
+            ("performance_marketer", ("Performance Marketer",), ("paid ads",)),
+            ("three_d_cgi", ("3D Artist",), ("CGI rendering",)),
+        )
+        for name, roles, services in fixtures:
+            intent = SimpleNamespace(
+                roles=roles,
+                services=services,
+                skills=(),
+                industries=(),
+                languages=("en", "ru"),
+            )
+            print(name, [query.text for query in build_telegram_profile_search_queries(intent)])
 
     async def test_search_uses_own_chat_only_deduplicates_and_preserves_safe_lineage(self):
         client = _Client()
@@ -111,6 +253,10 @@ class TelegramProfileDiscoveryTest(unittest.IsolatedAsyncioTestCase):
             client,
             governor=governor,
             intent=self._intent(),
+            queries=build_telegram_profile_search_queries(
+                self._intent(),
+                max_queries=8,
+            ),
             known_source_identities=("known_source",),
         )
 
@@ -142,9 +288,9 @@ class TelegramProfileDiscoveryTest(unittest.IsolatedAsyncioTestCase):
                 for match in provider.search_hits[0].query_matches
             },
             {
-                "DIRECT_ROLE",
-                "DIRECT_SERVICE",
-                "PROBLEM_TO_SOLVE",
+                "ROLE_DIRECT",
+                "SERVICE_DIRECT",
+                "SKILL_SERVICE",
             },
         )
 
@@ -154,6 +300,10 @@ class TelegramProfileDiscoveryTest(unittest.IsolatedAsyncioTestCase):
             client,
             governor=_Governor(),
             intent=self._intent(),
+            queries=build_telegram_profile_search_queries(
+                self._intent(),
+                max_queries=8,
+            ),
             known_source_identities=("@python_buyers",),
         )
 
