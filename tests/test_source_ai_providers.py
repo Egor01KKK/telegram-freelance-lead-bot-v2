@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import socket
+import urllib.error
 import unittest
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -30,8 +32,11 @@ from freelancer_bot.source_audit_sampler import SourceAuditMessage
 from freelancer_bot.source_discovery_runtime import AutonomousSourceDiscoveryRuntime
 from freelancer_bot.telegram_chat_discovery import (
     ScreenMessage,
+    ScreenResponse,
     TelegramChatDiscoveryService,
     TelegramChatScreenError,
+    TelegramChatScreenTimeout,
+    _screen_messages,
 )
 
 NOW = datetime(2026, 8, 20, 12, 0, tzinfo=UTC)
@@ -79,7 +84,7 @@ def _source_response(classification: SourceAuditClassification) -> dict:
     return {"choices": [{"message": {"content": classification.model_dump_json()}}]}
 
 
-def _screen_response() -> dict:
+def _screen_response(count: int = 1) -> dict:
     return {
         "choices": [
             {
@@ -90,10 +95,11 @@ def _screen_response() -> dict:
                             "confidence": 0.95,
                             "labels": [
                                 {
-                                    "message_index": 1,
+                                    "message_index": index,
                                     "category": "BUYER_TO_SPECIALIST",
                                     "confidence": 0.95,
                                 }
+                                for index in range(1, count + 1)
                             ],
                             "reason_codes": ["fixture"],
                         }
@@ -255,6 +261,161 @@ class SourceAIProviderPayloadTest(unittest.IsolatedAsyncioTestCase):
                     )[0]
                 )
         self.assertEqual(decisions, ["UNCLEAR", "UNCLEAR", "UNCLEAR"])
+
+    def _messages(self, count: int, *, text_size: int = 12_000):
+        return tuple(
+            SimpleNamespace(
+                id=index,
+                date=NOW - timedelta(minutes=index),
+                message=f"message-{index}-" + ("x" * text_size),
+            )
+            for index in range(1, count + 1)
+        )
+
+    def test_default_budget_keeps_order_and_bounded_sample_for_huge_history(self):
+        sample = _screen_messages(self._messages(25))
+
+        self.assertEqual(len(sample), 25)
+        self.assertEqual([item.message_id for item in sample], list(range(1, 26)))
+        self.assertTrue(all(len(item.text) <= 1000 for item in sample))
+        self.assertLessEqual(sum(len(item.text) for item in sample), 20_000)
+        self.assertTrue(all("x" * 12_000 not in item.text for item in sample))
+
+    def test_minimum_sample_is_retained_for_ten_large_messages(self):
+        sample = _screen_messages(self._messages(10))
+
+        self.assertEqual(len(sample), 10)
+        self.assertEqual([item.message_id for item in sample], list(range(1, 11)))
+        self.assertTrue(all(len(item.text) <= 1000 for item in sample))
+        self.assertLessEqual(sum(len(item.text) for item in sample), 20_000)
+
+    def test_short_messages_are_unchanged(self):
+        messages = tuple(
+            SimpleNamespace(
+                id=index,
+                date=NOW - timedelta(minutes=index),
+                message=f"short-{index}",
+            )
+            for index in range(1, 4)
+        )
+
+        sample = _screen_messages(messages)
+
+        self.assertEqual([item.text for item in sample], ["short-1", "short-2", "short-3"])
+
+    def test_invalid_items_are_removed_before_budget_is_calculated(self):
+        messages = (
+            SimpleNamespace(id=None, date=NOW, message="invalid-id"),
+            SimpleNamespace(id=0, date=NOW, message="invalid-id"),
+            SimpleNamespace(id=1, date=NOW.replace(tzinfo=None), message="a" * 500),
+            SimpleNamespace(id=2, date=None, message=None, text="b" * 500),
+            SimpleNamespace(id=3, date=NOW, text="c" * 500),
+            SimpleNamespace(id=4, date=NOW, message="d" * 500),
+        )
+
+        sample = _screen_messages(
+            messages,
+            history_limit=6,
+            max_message_chars=1000,
+            max_total_chars=1000,
+            min_sample=2,
+        )
+
+        self.assertEqual([item.message_id for item in sample], [1, 2, 3, 4])
+        self.assertEqual([item.occurred_at.tzinfo for item in sample], [UTC] * 4)
+        self.assertTrue(all(len(item.text) <= 250 for item in sample))
+        self.assertLessEqual(sum(len(item.text) for item in sample), 1000)
+
+    async def test_worst_case_provider_payload_is_bounded_and_validated_once(self):
+        config = _config("tokenrouter")
+        service = TelegramChatDiscoveryService(
+            None,
+            None,
+            config=config,
+            collector_account_id=1,
+            governor=SimpleNamespace(),
+        )
+        raw_messages = self._messages(25)
+        sample = _screen_messages(
+            raw_messages,
+            history_limit=config.telegram_chat_discovery_history_limit,
+            max_message_chars=config.telegram_chat_discovery_screen_max_message_chars,
+            max_total_chars=config.telegram_chat_discovery_screen_max_total_chars,
+            min_sample=config.telegram_chat_discovery_screen_min_sample,
+        )
+        peer = SimpleNamespace(peer_type="supergroup", display_name="Fixture")
+        calls = []
+
+        def fake_urlopen(request, timeout):
+            calls.append(
+                {
+                    "payload": json.loads(request.data),
+                    "timeout": timeout,
+                }
+            )
+            return _Response(_screen_response(25))
+
+        with patch(
+            "freelancer_bot.telegram_chat_discovery.urllib.request.urlopen",
+            fake_urlopen,
+        ):
+            classification = await service.screen_provider.classify(peer, sample)
+
+        self.assertEqual(len(calls), 1)
+        request_sample = json.loads(calls[0]["payload"]["messages"][1]["content"])["sample"]
+        self.assertEqual([item["message_id"] for item in request_sample], list(range(1, 26)))
+        self.assertTrue(all(len(item["text"]) <= 1000 for item in request_sample))
+        self.assertLessEqual(sum(len(item["text"]) for item in request_sample), 20_000)
+        validated = ScreenResponse.model_validate(
+            {
+                "decision": "WATCH",
+                "confidence": 0.95,
+                "labels": [
+                    {
+                        "message_index": index,
+                        "category": "BUYER_TO_SPECIALIST",
+                        "confidence": 0.95,
+                    }
+                    for index in range(1, 26)
+                ],
+                "reason_codes": ["fixture"],
+            }
+        )
+        self.assertEqual(len(validated.labels), len(classification.labels))
+        self.assertEqual(len(classification.labels), 25)
+
+    async def test_provider_timeouts_have_safe_explicit_subtype(self):
+        config = _config("tokenrouter")
+        service = TelegramChatDiscoveryService(
+            None,
+            None,
+            config=config,
+            collector_account_id=1,
+            governor=SimpleNamespace(),
+        )
+        peer = SimpleNamespace(peer_type="supergroup", display_name="Fixture")
+        messages = (ScreenMessage(1, NOW, "buyer demand"),)
+
+        timeout_errors = (
+            TimeoutError("secret payload should not leak"),
+            socket.timeout("secret payload should not leak"),
+            urllib.error.URLError(socket.timeout("secret payload should not leak")),
+            urllib.error.URLError("timed out"),
+        )
+        for timeout_error in timeout_errors:
+            with self.subTest(timeout_type=type(timeout_error).__name__):
+                with patch(
+                    "freelancer_bot.telegram_chat_discovery.urllib.request.urlopen",
+                    side_effect=timeout_error,
+                ):
+                    with self.assertRaises(TelegramChatScreenTimeout) as raised:
+                        await service.screen_provider.classify(peer, messages)
+                self.assertEqual(
+                    str(raised.exception),
+                    "tokenrouter chat-screen request timed out",
+                )
+                self.assertNotIn("secret", str(raised.exception))
+                self.assertNotIn("buyer demand", str(raised.exception))
 
     async def test_selected_provider_key_is_required_and_unknown_provider_fails_closed(self):
         with self.assertRaises(SourceAIProviderUnavailable):

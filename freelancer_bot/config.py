@@ -846,6 +846,20 @@ class RuntimeConfig(BaseSettings):
         ge=1,
         le=25,
     )
+    telegram_chat_discovery_screen_max_message_chars: int = classified_field(
+        1000,
+        sensitivity=Sensitivity.INTERNAL,
+        validation_alias="TELEGRAM_CHAT_DISCOVERY_SCREEN_MAX_MESSAGE_CHARS",
+        ge=200,
+        le=4000,
+    )
+    telegram_chat_discovery_screen_max_total_chars: int = classified_field(
+        20_000,
+        sensitivity=Sensitivity.INTERNAL,
+        validation_alias="TELEGRAM_CHAT_DISCOVERY_SCREEN_MAX_TOTAL_CHARS",
+        ge=5_000,
+        le=50_000,
+    )
     telegram_chat_discovery_screen_policy_version: str = classified_field(
         "telegram-chat-screen-policy.v1",
         sensitivity=Sensitivity.INTERNAL,

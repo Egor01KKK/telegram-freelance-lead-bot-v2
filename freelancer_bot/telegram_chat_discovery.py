@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import logging
 import re
+import socket
 import urllib.error
 import urllib.request
 from typing import Any, Literal, Protocol
@@ -102,6 +103,12 @@ class TelegramChatDiscoveryFloodWait(TelegramChatDiscoveryError):
 
 
 class TelegramChatScreenError(TelegramChatDiscoveryError):
+    pass
+
+
+class TelegramChatScreenTimeout(TelegramChatScreenError):
+    """The provider request exceeded its bounded network timeout."""
+
     pass
 
 
@@ -318,9 +325,29 @@ class OpenAICompatibleTelegramChatScreenProvider:
         try:
             with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
                 return response.read().decode("utf-8")
-        except (urllib.error.HTTPError, urllib.error.URLError) as exc:
-            if isinstance(exc, urllib.error.HTTPError):
-                exc.close()
+        except socket.timeout as exc:
+            raise TelegramChatScreenTimeout(
+                f"{self.name} chat-screen request timed out"
+            ) from exc
+        except TimeoutError as exc:
+            raise TelegramChatScreenTimeout(
+                f"{self.name} chat-screen request timed out"
+            ) from exc
+        except urllib.error.HTTPError as exc:
+            exc.close()
+            raise TelegramChatScreenError(
+                f"{self.name} chat-screen request failed"
+            ) from exc
+        except urllib.error.URLError as exc:
+            reason = getattr(exc, "reason", None)
+            if (
+                isinstance(reason, (socket.timeout, TimeoutError))
+                or "timed out" in str(reason).casefold()
+                or "timeout" in str(reason).casefold()
+            ):
+                raise TelegramChatScreenTimeout(
+                    f"{self.name} chat-screen request timed out"
+                ) from exc
             raise TelegramChatScreenError(
                 f"{self.name} chat-screen request failed"
             ) from exc
@@ -804,7 +831,13 @@ class TelegramChatDiscoveryService:
                 ),
             )
             history_request_count = 1
-            sample = _screen_messages(messages)
+            sample = _screen_messages(
+                messages,
+                history_limit=self.config.telegram_chat_discovery_history_limit,
+                max_message_chars=self.config.telegram_chat_discovery_screen_max_message_chars,
+                max_total_chars=self.config.telegram_chat_discovery_screen_max_total_chars,
+                min_sample=self.config.telegram_chat_discovery_screen_min_sample,
+            )
             ai_call_count = 1
             classification = await self.screen_provider.classify(claim.peer, sample)
             status, useful, category_counts, reasons = self.policy.evaluate(
@@ -1288,9 +1321,26 @@ def _message_hits_by_peer(messages: Sequence[Any]) -> Mapping[str, int]:
     return counts
 
 
-def _screen_messages(messages: Any) -> tuple[ScreenMessage, ...]:
+_SCREEN_MESSAGE_USEFUL_FLOOR = 200
+
+
+def _screen_messages(
+    messages: Any,
+    *,
+    history_limit: int = 25,
+    max_message_chars: int = 1000,
+    max_total_chars: int = 20_000,
+    min_sample: int = 10,
+) -> tuple[ScreenMessage, ...]:
+    if history_limit < 1:
+        return ()
+    if max_message_chars < _SCREEN_MESSAGE_USEFUL_FLOOR:
+        raise ValueError("max_message_chars is below the useful screening floor")
+    if max_total_chars < 1:
+        raise ValueError("max_total_chars must be positive")
+
     values: list[ScreenMessage] = []
-    for message in tuple(messages or ())[:25]:
+    for message in tuple(messages or ())[:history_limit]:
         message_id = getattr(message, "id", None)
         if not isinstance(message_id, int) or message_id <= 0:
             continue
@@ -1302,8 +1352,33 @@ def _screen_messages(messages: Any) -> tuple[ScreenMessage, ...]:
         text = getattr(message, "message", None)
         if text is None:
             text = getattr(message, "text", "")
-        values.append(ScreenMessage(message_id, occurred_at, str(text or "")[:12_000]))
-    return tuple(values)
+        values.append(ScreenMessage(message_id, occurred_at, str(text or "")))
+
+    if not values:
+        return ()
+
+    minimum_retained = min(len(values), max(1, min_sample))
+    if max_total_chars < minimum_retained * _SCREEN_MESSAGE_USEFUL_FLOOR:
+        raise ValueError("max_total_chars cannot preserve the configured minimum sample")
+
+    retained_count = len(values)
+    while (
+        retained_count > minimum_retained
+        and max_total_chars // retained_count < _SCREEN_MESSAGE_USEFUL_FLOOR
+    ):
+        retained_count -= 1
+
+    effective_per_message = min(
+        max_message_chars,
+        max_total_chars // retained_count,
+    )
+    if effective_per_message < _SCREEN_MESSAGE_USEFUL_FLOOR:
+        raise ValueError("screening message budget is below the useful floor")
+
+    return tuple(
+        ScreenMessage(item.message_id, item.occurred_at, item.text[:effective_per_message])
+        for item in values[:retained_count]
+    )
 
 
 def _input_entity_for_peer(peer: ChatDiscoveryPeerRecord) -> Any:
