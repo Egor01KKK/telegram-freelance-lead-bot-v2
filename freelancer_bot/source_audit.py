@@ -26,10 +26,15 @@ from .persistence.source_metrics import SourceHealthStatus, SourceMetricsReposit
 from .persistence.source_repository import SourceRecord, SourceRepository, SourceStatus
 from .openai_compat import add_sampling_parameter
 from .source_audit_sampler import SourceAuditSample, SourceAuditSampler, SourceAuditTarget
+from .source_ai_config import (
+    OPENAI_CHAT_COMPLETIONS_URL,
+    SourceAIProviderSettings,
+    normalize_chat_completions_url,
+    resolve_source_ai_provider,
+)
 
 
 SOURCE_AUDIT_SCHEMA_VERSION = "source-audit.v1"
-OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 _SAFE_IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,99}$")
 _LIFECYCLE_ACTOR_KINDS = frozenset({"seed", "system", "operator"})
 
@@ -175,7 +180,7 @@ class SourceAuditProvider(Protocol):
     async def classify(self, sample: SourceAuditSample) -> SourceAuditClassification: ...
 
 
-class OpenAISourceAuditProvider:
+class OpenAICompatibleSourceAuditProvider:
     def __init__(
         self,
         *,
@@ -184,26 +189,42 @@ class OpenAISourceAuditProvider:
         temperature: float = 0.0,
         timeout_seconds: int = 45,
         base_url: str = OPENAI_CHAT_COMPLETIONS_URL,
-        analyzer_version: str = "openai-source-audit-v1",
+        provider: str = "openai",
+        analyzer_version: str | None = None,
         max_output_attempts: int = 2,
     ) -> None:
         if not api_key.strip():
-            raise SourceAuditError("OPENAI_API_KEY is not configured")
+            raise SourceAuditError(f"{provider.upper()}_API_KEY is not configured")
+        normalized_provider = provider.strip().lower()
+        if normalized_provider not in {"openai", "deepseek", "tokenrouter"}:
+            raise SourceAuditError(f"Unsupported source-audit provider: {provider}")
+        self._provider = normalized_provider
         self._api_key = api_key
         self._model = _bounded_text(model, "model", 128)
         self._temperature = _bounded_ratio(temperature, "temperature", upper=2)
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         self._timeout_seconds = timeout_seconds
-        self._base_url = _required_text(base_url, "base_url")
-        self._analyzer_version = _safe_name(analyzer_version, "analyzer_version", 64)
+        self._base_url = _required_text(
+            (
+                base_url
+                if normalized_provider == "openai"
+                else normalize_chat_completions_url(base_url)
+            ),
+            "base_url",
+        )
+        self._analyzer_version = _safe_name(
+            analyzer_version or f"{normalized_provider}-source-audit-v1",
+            "analyzer_version",
+            64,
+        )
         if not 1 <= max_output_attempts <= 3:
             raise ValueError("max_output_attempts must be between 1 and 3")
         self._max_output_attempts = max_output_attempts
 
     @property
     def name(self) -> str:
-        return "openai"
+        return self._provider
 
     @property
     def model(self) -> str:
@@ -216,27 +237,11 @@ class OpenAISourceAuditProvider:
     async def classify(self, sample: SourceAuditSample) -> SourceAuditClassification:
         payload: dict[str, Any] = {
             "model": self._model,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "source_audit",
-                    "strict": True,
-                    "schema": source_audit_response_schema(),
-                },
-            },
+            "response_format": _source_audit_response_format(self._provider),
             "messages": [
                 {
                     "role": "system",
-                    "content": (
-                        "Classify a bounded recent sample from one community. "
-                        "Count commercial buyer opportunities separately from seller "
-                        "self-promotion, ads/spam and duplicate/reposted messages. "
-                        "Return extensible language/category taxonomy labels and a content "
-                        "mix whose ratios sum to 1. The content_mix object must contain "
-                        "exactly buyer_demand, seller_promotion, ads_spam, duplicate and "
-                        "other ratios; classify each sampled message into one primary "
-                        "bucket. Never invent messages or infer access."
-                    ),
+                    "content": _source_audit_system_prompt(self._provider),
                 },
                 {
                     "role": "user",
@@ -273,7 +278,7 @@ class OpenAISourceAuditProvider:
             except (KeyError, IndexError, TypeError, ValueError) as exc:
                 if attempt == self._max_output_attempts:
                     raise SourceAuditError(
-                        "OpenAI returned an invalid source-audit result"
+                        f"{self._provider} returned an invalid source-audit result"
                     ) from exc
                 payload["messages"].append(
                     {
@@ -308,7 +313,85 @@ class OpenAISourceAuditProvider:
         except (urllib.error.HTTPError, urllib.error.URLError) as exc:
             if isinstance(exc, urllib.error.HTTPError):
                 exc.close()
-            raise SourceAuditError(f"OpenAI source-audit request failed: {exc}") from exc
+            raise SourceAuditError(
+                f"{self._provider} source-audit request failed"
+            ) from exc
+
+
+class OpenAISourceAuditProvider(OpenAICompatibleSourceAuditProvider):
+    """Backward-compatible OpenAI source-audit provider name."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        temperature: float = 0.0,
+        timeout_seconds: int = 45,
+        base_url: str = OPENAI_CHAT_COMPLETIONS_URL,
+        analyzer_version: str = "openai-source-audit-v1",
+        max_output_attempts: int = 2,
+    ) -> None:
+        super().__init__(
+            api_key=api_key,
+            model=model,
+            temperature=temperature,
+            timeout_seconds=timeout_seconds,
+            base_url=base_url,
+            provider="openai",
+            analyzer_version=analyzer_version,
+            max_output_attempts=max_output_attempts,
+        )
+
+
+def source_audit_provider_from_config(config: Any) -> SourceAuditProvider:
+    settings: SourceAIProviderSettings = resolve_source_ai_provider(config)
+    return OpenAICompatibleSourceAuditProvider(
+        api_key=settings.api_key,
+        model=config.source_audit_model,
+        temperature=config.source_audit_temperature,
+        timeout_seconds=config.source_audit_timeout_seconds,
+        base_url=settings.base_url,
+        provider=settings.name,
+        analyzer_version=f"{settings.name}-source-audit-v1",
+    )
+
+
+def _source_audit_response_format(provider: str) -> dict[str, Any]:
+    if provider == "openai":
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "source_audit",
+                "strict": True,
+                "schema": source_audit_response_schema(),
+            },
+        }
+    return {"type": "json_object"}
+
+
+def _source_audit_system_prompt(provider: str) -> str:
+    prompt = (
+        "Classify a bounded recent sample from one community. "
+        "Count commercial buyer opportunities separately from seller "
+        "self-promotion, ads/spam and duplicate/reposted messages. "
+        "Return extensible language/category taxonomy labels and a content "
+        "mix whose ratios sum to 1. The content_mix object must contain "
+        "exactly buyer_demand, seller_promotion, ads_spam, duplicate and "
+        "other ratios; classify each sampled message into one primary "
+        "bucket. Never invent messages or infer access."
+    )
+    if provider != "openai":
+        prompt += (
+            " Return one JSON object only, with no markdown or prose, matching "
+            "this complete source-audit contract: "
+            + json.dumps(
+                source_audit_response_schema(),
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+    return prompt
 
 
 @dataclass(frozen=True)

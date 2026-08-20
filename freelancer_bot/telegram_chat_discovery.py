@@ -49,6 +49,14 @@ from .persistence.telegram_chat_discovery import (
     normalize_topic,
 )
 from .persistence.telegram_operation_state import TelegramCollectorFloodWaitActive
+from .source_ai_config import (
+    OPENAI_CHAT_COMPLETIONS_URL,
+    SourceAIProviderSettings,
+    SourceAIProviderUnavailable,
+    UnsupportedSourceAIProvider,
+    normalize_chat_completions_url,
+    resolve_source_ai_provider,
+)
 from .telegram_request_governor import TelegramRequestCategory, TelegramRequestGovernor
 from .telegram_profile_discovery import build_telegram_profile_search_queries
 from .worker import DurableWorker, WorkerOptions
@@ -59,7 +67,6 @@ TELEGRAM_CHAT_DISCOVERY_PROVIDER = "telegram_chat_search"
 TELEGRAM_CHAT_DISCOVERY_SCHEMA_VERSION = "telegram-chat-screen.v1"
 TELEGRAM_CHAT_DISCOVERY_PROMPT_VERSION = "telegram-chat-screen-prompt.v1"
 TELEGRAM_CHAT_DISCOVERY_ANALYZER_VERSION = "telegram-chat-screen-openai.v1"
-OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 
 SCREEN_CATEGORIES = (
     "BUYER_TO_SPECIALIST",
@@ -192,9 +199,7 @@ def telegram_chat_screen_response_schema() -> dict[str, Any]:
     }
 
 
-class OpenAITelegramChatScreenProvider:
-    name = "openai"
-
+class OpenAICompatibleTelegramChatScreenProvider:
     def __init__(
         self,
         *,
@@ -204,19 +209,30 @@ class OpenAITelegramChatScreenProvider:
         timeout_seconds: int = 45,
         max_output_attempts: int = 2,
         base_url: str = OPENAI_CHAT_COMPLETIONS_URL,
+        provider: str = "openai",
     ) -> None:
         if not api_key.strip():
-            raise TelegramChatScreenError("OPENAI_API_KEY is not configured")
+            raise TelegramChatScreenError(f"{provider.upper()}_API_KEY is not configured")
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         if not 1 <= max_output_attempts <= 3:
             raise ValueError("max_output_attempts must be between 1 and 3")
+        normalized_provider = provider.strip().lower()
+        if normalized_provider not in {"openai", "deepseek", "tokenrouter"}:
+            raise TelegramChatScreenError(
+                f"Unsupported Telegram chat-screen provider: {provider}"
+            )
         self._api_key = api_key
+        self.name = normalized_provider
         self.model = model.strip()
         self._temperature = temperature
         self._timeout_seconds = timeout_seconds
         self._max_output_attempts = max_output_attempts
-        self._base_url = base_url
+        self._base_url = (
+            base_url
+            if normalized_provider == "openai"
+            else normalize_chat_completions_url(base_url)
+        )
 
     async def classify(
         self,
@@ -225,25 +241,11 @@ class OpenAITelegramChatScreenProvider:
     ) -> ScreenClassification:
         payload: dict[str, Any] = {
             "model": self.model,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "telegram_chat_screen",
-                    "strict": True,
-                    "schema": telegram_chat_screen_response_schema(),
-                },
-            },
+            "response_format": _telegram_chat_screen_response_format(self.name),
             "messages": [
                 {
                     "role": "system",
-                    "content": (
-                        "Decide whether this Telegram community should enter a later "
-                        "source-candidate audit. Classify every sampled message into one "
-                        "primary category. Buyer demand and contractor/project demand are "
-                        "useful; seller self-promotion is not useful. Never infer missing "
-                        "messages, access, identity or approval. Return exactly one label "
-                        "per supplied message index."
-                    ),
+                    "content": _telegram_chat_screen_system_prompt(self.name),
                 },
                 {
                     "role": "user",
@@ -291,12 +293,17 @@ class OpenAITelegramChatScreenProvider:
                 payload["messages"].append(
                     {
                         "role": "system",
-                        "content": "Return a complete replacement object with one label for every message_index.",
+                        "content": (
+                            f"{self.name} must return a complete replacement JSON object "
+                            "with one label for every message_index."
+                        ),
                     }
                 )
             except TelegramChatScreenError:
                 raise
-        raise TelegramChatScreenError("OpenAI returned an invalid chat-screen result") from last_error
+        raise TelegramChatScreenError(
+            f"{self.name} returned an invalid chat-screen result"
+        ) from last_error
 
     def _request(self, payload: Mapping[str, Any]) -> str:
         request = urllib.request.Request(
@@ -314,7 +321,82 @@ class OpenAITelegramChatScreenProvider:
         except (urllib.error.HTTPError, urllib.error.URLError) as exc:
             if isinstance(exc, urllib.error.HTTPError):
                 exc.close()
-            raise TelegramChatScreenError("OpenAI chat-screen request failed") from exc
+            raise TelegramChatScreenError(
+                f"{self.name} chat-screen request failed"
+            ) from exc
+
+
+class OpenAITelegramChatScreenProvider(OpenAICompatibleTelegramChatScreenProvider):
+    """Backward-compatible OpenAI chat-screen provider name."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        temperature: float = 0.0,
+        timeout_seconds: int = 45,
+        max_output_attempts: int = 2,
+        base_url: str = OPENAI_CHAT_COMPLETIONS_URL,
+    ) -> None:
+        super().__init__(
+            api_key=api_key,
+            model=model,
+            temperature=temperature,
+            timeout_seconds=timeout_seconds,
+            max_output_attempts=max_output_attempts,
+            base_url=base_url,
+            provider="openai",
+        )
+
+
+def telegram_chat_screen_provider_from_config(
+    config: RuntimeConfig,
+) -> OpenAICompatibleTelegramChatScreenProvider:
+    settings: SourceAIProviderSettings = resolve_source_ai_provider(config)
+    return OpenAICompatibleTelegramChatScreenProvider(
+        api_key=settings.api_key,
+        model=config.source_audit_model,
+        temperature=config.source_audit_temperature,
+        timeout_seconds=config.source_audit_timeout_seconds,
+        base_url=settings.base_url,
+        provider=settings.name,
+    )
+
+
+def _telegram_chat_screen_response_format(provider: str) -> dict[str, Any]:
+    if provider == "openai":
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "telegram_chat_screen",
+                "strict": True,
+                "schema": telegram_chat_screen_response_schema(),
+            },
+        }
+    return {"type": "json_object"}
+
+
+def _telegram_chat_screen_system_prompt(provider: str) -> str:
+    prompt = (
+        "Decide whether this Telegram community should enter a later "
+        "source-candidate audit. Classify every sampled message into one "
+        "primary category. Buyer demand and contractor/project demand are "
+        "useful; seller self-promotion is not useful. Never infer missing "
+        "messages, access, identity or approval. Return exactly one label "
+        "per supplied message index."
+    )
+    if provider != "openai":
+        prompt += (
+            " Return one JSON object only, with no markdown or prose, matching "
+            "this complete Telegram chat-screen contract: "
+            + json.dumps(
+                telegram_chat_screen_response_schema(),
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+    return prompt
 
 
 @dataclass(frozen=True)
@@ -1024,16 +1106,12 @@ class TelegramChatDiscoveryService:
         return source.id
 
     def _provider_from_config(self, config: RuntimeConfig) -> TelegramChatScreenProvider | None:
-        if config.openai_api_key is None:
+        try:
+            return telegram_chat_screen_provider_from_config(config)
+        except SourceAIProviderUnavailable:
             return None
-        if config.source_audit_provider != "openai":
-            return None
-        return OpenAITelegramChatScreenProvider(
-            api_key=config.openai_api_key.get_secret_value(),
-            model=config.source_audit_model,
-            temperature=config.source_audit_temperature,
-            timeout_seconds=config.source_audit_timeout_seconds,
-        )
+        except UnsupportedSourceAIProvider as exc:
+            raise TelegramChatScreenError(str(exc)) from exc
 
 
 class TelegramChatDiscoveryRuntime:

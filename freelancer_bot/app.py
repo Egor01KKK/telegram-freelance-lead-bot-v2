@@ -66,6 +66,7 @@ from .profile_onboarding_service import ProfileOnboardingService
 from .replies import OpenAIReplyDraftGenerator, ReplyDraft, ReplyDraftError
 from .sources import Source, load_sources
 from .source_discovery_runtime import AutonomousSourceDiscoveryRuntime
+from .source_ai_config import source_ai_provider_available
 from .telegram_chat_discovery import (
     TelegramChatDiscoveryRuntime,
     TelegramChatDiscoveryService,
@@ -1419,6 +1420,11 @@ class LeadBot:
             getattr(self.config, "openai_api_key", None) is not None
             and bool(self.config.openai_api_key.get_secret_value().strip())
         )
+        source_provider_available = source_ai_provider_available(self.config)
+        source_audit_enabled = (
+            getattr(self.config, "source_audit_enabled", False)
+            and source_provider_available
+        )
         log_event(
             LOGGER,
             logging.INFO,
@@ -1448,10 +1454,9 @@ class LeadBot:
                 "telegram_chat_discovery_enabled",
                 False,
             ),
-            source_audit_enabled=(
-                getattr(self.config, "source_audit_enabled", False)
-                and openai_configured
-            ),
+            source_audit_enabled=source_audit_enabled,
+            source_audit_provider=getattr(self.config, "source_audit_provider", "unknown"),
+            chat_screen_provider_available=source_provider_available,
         )
 
     async def _run_source_discovery_loop(self) -> None:

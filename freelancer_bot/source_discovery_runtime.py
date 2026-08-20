@@ -30,10 +30,11 @@ from .persistence.search_profiles import SearchProfileRepository
 from .persistence.telegram_chat_discovery import TelegramChatDiscoveryRepository
 from .profile_discovery import ProfileDiscoveryExecution, ProfileDiscoveryService
 from .source_audit import (
-    OpenAISourceAuditProvider,
     SourceAuditPipeline,
     SourceAuditRunResult,
+    source_audit_provider_from_config,
 )
+from .source_ai_config import SourceAIProviderUnavailable
 from .source_audit_sampler import (
     SourceAuditTarget,
     SourceAuditPolicy,
@@ -191,7 +192,7 @@ class AutonomousSourceDiscoveryRuntime:
                 reason=(
                     "SOURCE_AUDIT_ENABLED=false"
                     if not self._config.source_audit_enabled
-                    else "OPENAI_API_KEY_unconfigured"
+                    else f"{self._config.source_audit_provider.upper()}_API_KEY_unconfigured"
                 ),
                 candidate_count=len(candidate_ids),
             )
@@ -472,8 +473,16 @@ class AutonomousSourceDiscoveryRuntime:
     def _build_audit_pipeline(self) -> SourceAuditPipeline | None:
         if not self._config.source_audit_enabled:
             return None
-        key = self._config.openai_api_key
-        if key is None or not key.get_secret_value().strip():
+        try:
+            provider = source_audit_provider_from_config(self._config)
+        except SourceAIProviderUnavailable:
+            log_event(
+                self._logger,
+                logging.INFO,
+                "source.audit.provider_unavailable",
+                provider=self._config.source_audit_provider,
+                reason="selected_provider_key_missing",
+            )
             return None
         return SourceAuditPipeline(
             self._database,
@@ -492,12 +501,7 @@ class AutonomousSourceDiscoveryRuntime:
                     ),
                 ),
             ),
-            OpenAISourceAuditProvider(
-                api_key=key.get_secret_value(),
-                model=self._config.source_audit_model,
-                temperature=self._config.source_audit_temperature,
-                timeout_seconds=self._config.source_audit_timeout_seconds,
-            ),
+            provider,
             lifecycle_actor_kind="system",
             lifecycle_actor_id="autonomous_source_discovery",
         )

@@ -18,6 +18,7 @@ from .config import RuntimeConfig
 from .observability import log_event
 from .persistence.database import Database
 from .source_discovery_runtime import AutonomousSourceDiscoveryRuntime
+from .source_ai_config import source_ai_provider_available
 from .telegram_profile_discovery import TelegramProfileDiscoveryRuntime
 from .telegram_request_governor import TelegramRequestGovernor
 from .telegram_chat_discovery import (
@@ -87,6 +88,7 @@ class CollectorOnlyRuntime:
                 self.collector_account_id,
                 self.config,
             )
+            source_provider_available = source_ai_provider_available(self.config)
             if self.config.telegram_chat_discovery_enabled:
                 self.chat_discovery_runtime = TelegramChatDiscoveryRuntime(
                     TelegramChatDiscoveryService(
@@ -111,8 +113,11 @@ class CollectorOnlyRuntime:
                 ),
                 source_audit_enabled=(
                     self.config.source_audit_enabled
+                    and source_provider_available
                     and not self.config.telegram_chat_discovery_enabled
                 ),
+                source_audit_provider=self.config.source_audit_provider,
+                chat_screen_provider_available=source_provider_available,
             )
             return self.snapshot
         except BaseException:

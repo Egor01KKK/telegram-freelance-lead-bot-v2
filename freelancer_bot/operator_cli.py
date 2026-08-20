@@ -40,7 +40,11 @@ from .persistence.schema import source_discovery_evidence, source_reference_alia
 from .persistence.source_audits import SourceAuditRepository
 from .persistence.source_repository import SourceRepository, SourceStatus
 from .persistence.search_profiles import SearchProfileRepository
-from .source_audit import OpenAISourceAuditProvider, SourceAuditPipeline
+from .source_audit import SourceAuditPipeline, source_audit_provider_from_config
+from .source_ai_config import (
+    SourceAIProviderConfigurationError,
+    SourceAIProviderUnavailable,
+)
 from .source_audit_sampler import (
     SourceAuditPolicy,
     SourceAuditTarget,
@@ -715,8 +719,10 @@ async def _validate_candidate_canary(
                 raise RuntimeError("candidate canary audit result shape is invalid")
             if audit_limit == 0:
                 audit["skipped_reason"] = "audit_limit_zero"
-            elif config.openai_api_key is None or not config.openai_api_key.get_secret_value().strip():
-                audit["skipped_reason"] = "OPENAI_API_KEY_NOT_CONFIGURED"
+            elif (provider := _configured_source_audit_provider(config)) is None:
+                audit["skipped_reason"] = (
+                    f"{config.source_audit_provider.upper()}_API_KEY_NOT_CONFIGURED"
+                )
             else:
                 pipeline = SourceAuditPipeline(
                     database,
@@ -735,12 +741,7 @@ async def _validate_candidate_canary(
                             ),
                         ),
                     ),
-                    OpenAISourceAuditProvider(
-                        api_key=config.openai_api_key.get_secret_value(),
-                        model=config.source_audit_model,
-                        temperature=config.source_audit_temperature,
-                        timeout_seconds=config.source_audit_timeout_seconds,
-                    ),
+                    provider,
                 )
                 for source, _priority, _validation in accessible[:audit_limit]:
                     audit["attempted"] = int(audit["attempted"]) + 1
@@ -994,6 +995,13 @@ def _increment_count(target: object, key: str) -> None:
 def _safe_failure_class_name(exc: Exception) -> str:
     value = type(exc).__name__.casefold()
     return "".join(char if char.isalnum() or char in "_.-" else "_" for char in value)[:64]
+
+
+def _configured_source_audit_provider(config: RuntimeConfig):
+    try:
+        return source_audit_provider_from_config(config)
+    except SourceAIProviderUnavailable:
+        return None
 
 
 async def _query_dedup_report(database: Database) -> dict[str, object]:
@@ -1498,8 +1506,10 @@ async def _audit_command(args: argparse.Namespace) -> None:
     config = _sources_config()
     if config.api_id is None:
         raise ConfigurationError("TELEGRAM_API_ID/API_ID is required for Source Audit")
-    if config.openai_api_key is None or not config.openai_api_key.get_secret_value().strip():
-        raise ConfigurationError("OPENAI_API_KEY is required for Source Audit")
+    try:
+        provider = source_audit_provider_from_config(config)
+    except SourceAIProviderConfigurationError as exc:
+        raise ConfigurationError(str(exc)) from exc
     config.user_session_path.parent.mkdir(parents=True, exist_ok=True)
     with TelegramSessionFileLock(config.user_session_path, role="source_audit"):
         database = Database(config.postgresql_url())
@@ -1527,12 +1537,6 @@ async def _audit_command(args: argparse.Namespace) -> None:
                         "The authenticated collector account has no permitted access to this source"
                     )
             lookup = source.handle or source.canonical_url or source.external_id
-            provider = OpenAISourceAuditProvider(
-                api_key=config.openai_api_key.get_secret_value(),
-                model=config.source_audit_model,
-                temperature=config.source_audit_temperature,
-                timeout_seconds=config.source_audit_timeout_seconds,
-            )
             pipeline = SourceAuditPipeline(
                 database,
                 SourceAuditSampler(
