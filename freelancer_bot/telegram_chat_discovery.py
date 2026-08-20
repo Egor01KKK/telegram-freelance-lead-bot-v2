@@ -642,6 +642,52 @@ class TelegramChatDiscoveryService:
             claim = await self.repository.claim_screen(connection, peer_id=peer_id, now=now)
         if claim is None:
             return None
+        # Automatic global Chat Discovery is intentionally public-source only.
+        # A peer without a public username/canonical URL may still be useful
+        # to manually managed collector sources, but it must not enter the
+        # automatic history/AI/source-candidate path.  Finish it as a durable
+        # terminal screen result before checking provider configuration so the
+        # boundary is deterministic even when AI is unavailable.
+        if (
+            claim.peer.dedup_bucket == "GENUINELY_NEW"
+            and claim.peer.source_id is None
+            and claim.peer.access_type == "private"
+        ):
+            async with self.database.transaction() as connection:
+                peer = await self.repository.finish_screen(
+                    connection,
+                    claim=claim,
+                    collector_account_id=self.collector_account_id,
+                    status="SKIP",
+                    decision="SKIP",
+                    policy_version=self.policy.version,
+                    provider="not_applicable",
+                    model=None,
+                    sample_count=0,
+                    useful_count=0,
+                    history_request_count=0,
+                    ai_call_count=0,
+                    confidence=None,
+                    category_counts={},
+                    reason_codes=("private_source_not_global",),
+                    retry_at=None,
+                )
+            log_event(
+                self.logger,
+                logging.INFO,
+                "telegram.chat_discovery.screen_skipped",
+                peer_type=claim.peer.peer_type,
+                collector_account_id=self.collector_account_id,
+                reason="private_source_not_global",
+            )
+            return ChatDiscoveryScreenResult(
+                peer,
+                "SKIP",
+                0,
+                0,
+                {},
+                ("private_source_not_global",),
+            )
         if self.screen_provider is None:
             async with self.database.transaction() as connection:
                 peer = await self.repository.finish_screen(
@@ -936,6 +982,8 @@ class TelegramChatDiscoveryService:
         provider: str,
         policy_version: str,
     ) -> int:
+        if provider == TELEGRAM_CHAT_DISCOVERY_PROVIDER and peer.access_type == "private":
+            raise TelegramChatDiscoveryError("private_source_not_global")
         external_id = (
             f"username:{peer.username.removeprefix('@').casefold()}"
             if peer.username

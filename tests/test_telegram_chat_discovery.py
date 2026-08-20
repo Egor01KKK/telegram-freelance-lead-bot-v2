@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock
 
+import sqlalchemy as sa
 from telethon.tl.types import Channel
 
 from freelancer_bot.config import RuntimeConfig
@@ -13,6 +14,10 @@ from freelancer_bot.app import LeadBot
 from freelancer_bot.persistence.collector_accounts import CollectorAccountRepository
 from freelancer_bot.persistence.database import Database
 from freelancer_bot.persistence.source_repository import SourceRepository, SourceStatus
+from freelancer_bot.persistence.schema import (
+    sources,
+    telegram_chat_discovery_screen_attempts,
+)
 from freelancer_bot.persistence.telegram_chat_discovery import (
     SCREEN_JOB_TYPE,
     TelegramChatDiscoveryRepository,
@@ -25,6 +30,7 @@ from freelancer_bot.source_discovery_runtime import SourceDiscoveryCycle
 from freelancer_bot.telegram_chat_discovery import (
     ScreenClassification,
     ScreenResponse,
+    TelegramChatDiscoveryError,
     TelegramChatDiscoveryService,
     TelegramChatScreenPolicy,
     input_entity_for_peer,
@@ -370,6 +376,229 @@ class TelegramChatDiscoveryPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(jobs.get(f"{SCREEN_JOB_TYPE}:completed", 0), 5)
         self.assertEqual(jobs.get(f"{SCREEN_JOB_TYPE}:queued", 0), 0)
         self.assertEqual(jobs.get(f"{SCREEN_JOB_TYPE}:running", 0), 0)
+
+    async def test_new_private_peer_is_terminal_skip_without_history_ai_or_source(self):
+        account_id = await self._account("chat-discovery-private-screen")
+
+        class Client:
+            def __init__(self):
+                self.history_calls = 0
+
+            async def get_messages(self, _entity, *, limit):
+                self.history_calls += 1
+                raise AssertionError("private peer must not read history")
+
+        class FailingProvider(_ScreenProvider):
+            def __init__(self):
+                self.calls = 0
+
+            async def classify(self, peer, messages):
+                self.calls += 1
+                raise AssertionError("private peer must not invoke screening AI")
+
+        async with self.database.transaction() as connection:
+            peer, _created = await self.repository.upsert_peer(
+                connection,
+                canonical_peer_identity="channel:501",
+                peer_type="supergroup",
+                telegram_peer_id=501,
+                telegram_access_hash=5001,
+                display_name="Private peer fixture",
+                username=None,
+                canonical_url=None,
+                access_type="private",
+                source_id=None,
+                dedup_bucket="GENUINELY_NEW",
+                collector_account_id=account_id,
+            )
+            job_id = await self.repository.enqueue_screen_job(
+                connection,
+                peer_id=peer.id,
+                attempt_number=1,
+            )
+
+        client = Client()
+        provider = FailingProvider()
+        wake_calls = []
+
+        async def on_watch(source_id):
+            wake_calls.append(source_id)
+
+        service = TelegramChatDiscoveryService(
+            self.database,
+            client,
+            config=self._config(),
+            collector_account_id=account_id,
+            governor=TelegramRequestGovernor(
+                self.database,
+                account_id,
+                self._config(),
+                clock=lambda: NOW,
+                random_uniform=lambda lower, _upper: lower,
+            ),
+            screen_provider=provider,
+            watch_candidate_callback=on_watch,
+        )
+        await service.drain(
+            worker_id="private-screen-test",
+            job_type=SCREEN_JOB_TYPE,
+            job_ids=(job_id,),
+            timeout_seconds=10,
+        )
+
+        async with self.database.connect() as connection:
+            persisted = await self.repository.get_peer(connection, peer.id)
+            attempts = await connection.execute(
+                sa.select(telegram_chat_discovery_screen_attempts).where(
+                    telegram_chat_discovery_screen_attempts.c.peer_id == peer.id
+                )
+            )
+            attempt = attempts.mappings().one()
+            jobs = await self.repository.job_counts(connection)
+            source = await SourceRepository().get_by_identity(
+                connection,
+                platform="telegram",
+                external_id="channel:501",
+            )
+
+        self.assertEqual(persisted.screen_status, "SKIP")
+        self.assertEqual(persisted.screen_attempt_count, 1)
+        self.assertEqual(persisted.source_id, None)
+        self.assertEqual(persisted.next_screen_at, None)
+        self.assertEqual(attempt["reason_codes"], ["private_source_not_global"])
+        self.assertEqual(attempt["history_request_count"], 0)
+        self.assertEqual(attempt["ai_call_count"], 0)
+        self.assertEqual(attempt["sample_count"], 0)
+        self.assertIsNone(source)
+        self.assertEqual(client.history_calls, 0)
+        self.assertEqual(provider.calls, 0)
+        self.assertEqual(wake_calls, [])
+        self.assertEqual(jobs.get(f"{SCREEN_JOB_TYPE}:completed", 0), 1)
+
+        self.assertEqual(await service.enqueue_pending_screens(limit=10), ())
+        self.assertIsNone(await service.screen_peer(peer.id))
+
+    async def test_private_peer_skips_before_unconfigured_provider_and_repeated_search_does_not_retry(self):
+        account_id = await self._account("chat-discovery-private-no-ai")
+        private = Channel(
+            id=502,
+            access_hash=5002,
+            title="Private no-AI fixture",
+            photo=None,
+            date=None,
+            username=None,
+            megagroup=True,
+        )
+
+        class Client:
+            def __init__(self):
+                self.search_calls = 0
+
+            async def __call__(self, _request):
+                self.search_calls += 1
+                return SimpleNamespace(
+                    messages=(SimpleNamespace(id=1, chat=private),),
+                    chats=(private,),
+                )
+
+            async def get_messages(self, _entity, *, limit):
+                raise AssertionError("private peer must not read history")
+
+        client = Client()
+        config = self._config()
+        async with self.database.transaction() as connection:
+            topic = await self.repository.ensure_topic(
+                connection,
+                topic_text="private fixture",
+                language="en",
+                topic_kind="base",
+                refresh_interval_seconds=300,
+            )
+
+        service = TelegramChatDiscoveryService(
+            self.database,
+            client,
+            config=config,
+            collector_account_id=account_id,
+            governor=TelegramRequestGovernor(
+                self.database,
+                account_id,
+                config,
+                clock=lambda: NOW,
+                random_uniform=lambda lower, _upper: lower,
+            ),
+            screen_provider=None,
+        )
+        first = await service.run_search(topic, search_budget=20, refresh_key="private-first")
+        async with self.database.connect() as connection:
+            pending = await self.repository.list_screen_pending(connection, now=NOW, limit=10)
+        self.assertEqual(first.new_peers, 1)
+        self.assertEqual(first.screen_jobs_created, 1)
+        self.assertEqual(len(pending), 1)
+        self.assertEqual((await service.screen_peer(pending[0].id)).status, "SKIP")
+
+        repeated = await service.run_search(topic, search_budget=20, refresh_key="private-second")
+        self.assertEqual(client.search_calls, 2)
+        self.assertEqual(repeated.screen_jobs_created, 0)
+        self.assertEqual(await service.enqueue_pending_screens(limit=10), ())
+        async with self.database.connect() as connection:
+            persisted = await self.repository.get_peer(connection, pending[0].id)
+            source_count = await connection.scalar(
+                sa.select(sa.func.count()).select_from(sources).where(
+                    sources.c.platform == "telegram",
+                    sources.c.external_id == "channel:502",
+                )
+            )
+        self.assertEqual(persisted.screen_attempt_count, 1)
+        self.assertEqual(persisted.screen_status, "SKIP")
+        self.assertEqual(source_count, 0)
+
+    async def test_chat_discovery_candidate_persistence_rejects_private_peer(self):
+        account_id = await self._account("chat-discovery-private-candidate")
+        async with self.database.transaction() as connection:
+            peer, _created = await self.repository.upsert_peer(
+                connection,
+                canonical_peer_identity="channel:503",
+                peer_type="supergroup",
+                telegram_peer_id=503,
+                telegram_access_hash=5003,
+                display_name="Private candidate fixture",
+                username=None,
+                canonical_url=None,
+                access_type="private",
+                source_id=None,
+                dedup_bucket="GENUINELY_NEW",
+                collector_account_id=account_id,
+            )
+            service = TelegramChatDiscoveryService(
+                self.database,
+                SimpleNamespace(),
+                config=self._config(),
+                collector_account_id=account_id,
+                governor=TelegramRequestGovernor(
+                    self.database,
+                    account_id,
+                    self._config(),
+                    clock=lambda: NOW,
+                    random_uniform=lambda lower, _upper: lower,
+                ),
+                screen_provider=None,
+            )
+            with self.assertRaisesRegex(TelegramChatDiscoveryError, "private_source_not_global"):
+                await service._persist_candidate(
+                    connection,
+                    peer=peer,
+                    provider="telegram_chat_search",
+                    policy_version="test-policy",
+                )
+
+            source_count = await connection.scalar(
+                sa.select(sa.func.count()).select_from(sources).where(
+                    sources.c.platform == "telegram",
+                    sources.c.external_id == "channel:503",
+                )
+            )
+        self.assertEqual(source_count, 0)
 
     async def test_watch_wake_audit_reload_and_catchup_reaches_dispatch_boundary(self):
         account_id = await self._account("watch-to-ingestion-fixture")
