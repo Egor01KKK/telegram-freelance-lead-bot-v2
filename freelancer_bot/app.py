@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from dataclasses import dataclass
 import logging
 import signal
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable
 from uuid import UUID
@@ -14,9 +14,9 @@ from telethon import Button, TelegramClient, events
 from telethon.errors import RPCError
 from telethon.tl.custom.message import Message
 
-from .config import AIProvider, ConfigurationError, RuntimeConfig, RuntimeMode
-from .collector_only import run_collector_only
 from .billing import BillingPlan
+from .collector_only import run_collector_only
+from .config import AIProvider, ConfigurationError, RuntimeConfig, RuntimeMode
 from .delivery import TelegramSendReceipt
 from .delivery_actions import (
     DELIVERY_ACTION_CALLBACK_PATTERN,
@@ -36,6 +36,7 @@ from .observability import (
     new_correlation_id,
     trace_context,
 )
+from .opportunity_analysis import opportunity_analysis_provider_available
 from .persistence.database import Database
 from .persistence.delivery_actions import (
     DeliveryActionError,
@@ -64,26 +65,17 @@ from .profile_onboarding import (
 )
 from .profile_onboarding_service import ProfileOnboardingService
 from .replies import OpenAIReplyDraftGenerator, ReplyDraft, ReplyDraftError
-from .sources import Source, load_sources
-from .source_discovery_runtime import AutonomousSourceDiscoveryRuntime
 from .source_ai_config import source_ai_provider_available
+from .source_discovery_runtime import AutonomousSourceDiscoveryRuntime
+from .sources import Source, load_sources
+from .storage import Storage, StoredLead
 from .telegram_chat_discovery import (
     TelegramChatDiscoveryRuntime,
     TelegramChatDiscoveryService,
 )
-from .telegram_profile_discovery import TelegramProfileDiscoveryRuntime
-from .telegram_request_governor import TelegramRequestCategory, TelegramRequestGovernor
-from .storage import Storage, StoredLead
 from .telegram_collector import (
     ApprovedTelegramSourceAdapter,
     TelegramCollectorSource,
-)
-from .telegram_session import TelegramSessionFileLock
-from .telegram_onboarding import (
-    TelegramOnboardingResponse,
-    TelegramProfileOnboarding,
-    WORK_TYPE_CALLBACK_CODES,
-    settings_help,
 )
 from .telegram_navigation import (
     CANCEL_LABEL,
@@ -94,7 +86,15 @@ from .telegram_navigation import (
     setting_field_from_code,
     setting_prompt,
 )
-
+from .telegram_onboarding import (
+    WORK_TYPE_CALLBACK_CODES,
+    TelegramOnboardingResponse,
+    TelegramProfileOnboarding,
+    settings_help,
+)
+from .telegram_profile_discovery import TelegramProfileDiscoveryRuntime
+from .telegram_request_governor import TelegramRequestCategory, TelegramRequestGovernor
+from .telegram_session import TelegramSessionFileLock
 
 LOGGER = logging.getLogger("freelancer_bot")
 
@@ -1416,9 +1416,15 @@ class LeadBot:
             self._chat_discovery_task = None
 
     def _log_runtime_mode(self) -> None:
-        openai_configured = (
-            getattr(self.config, "openai_api_key", None) is not None
-            and bool(self.config.openai_api_key.get_secret_value().strip())
+        opportunity_provider = getattr(
+            self.config,
+            "opportunity_analysis_provider",
+            "openai",
+        )
+        opportunity_ai_enabled = opportunity_analysis_provider_available(self.config)
+        opportunity_fallback_enabled = (
+            getattr(self.config, "opportunity_analysis_fallback_enabled", False)
+            and opportunity_analysis_provider_available(self.config, fallback=True)
         )
         source_provider_available = source_ai_provider_available(self.config)
         source_audit_enabled = (
@@ -1432,10 +1438,13 @@ class LeadBot:
             runtime_mode=("run" if getattr(self, "_background_enabled", True) else "bot_only"),
             background_enabled=getattr(self, "_background_enabled", True),
             v2_ingestion_enabled=True,
-            opportunity_ai_enabled=(
-                openai_configured
-                and getattr(self.config, "opportunity_analysis_provider", "openai")
-                == "openai"
+            opportunity_ai_enabled=opportunity_ai_enabled,
+            opportunity_analysis_provider=opportunity_provider,
+            opportunity_analysis_fallback_enabled=opportunity_fallback_enabled,
+            opportunity_analysis_fallback_provider=getattr(
+                self.config,
+                "opportunity_analysis_fallback_provider",
+                "openai",
             ),
             v2_matching_enabled=True,
             v2_personalized_delivery_enabled=True,

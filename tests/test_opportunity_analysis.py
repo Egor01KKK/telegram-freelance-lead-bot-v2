@@ -1,23 +1,25 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from decimal import Decimal
 import json
-from pathlib import Path
 import unittest
 import urllib.error
+from datetime import datetime, timezone
+from decimal import Decimal
+from pathlib import Path
 from unittest.mock import patch
 from uuid import UUID
 
 from pydantic import ValidationError
 
-from freelancer_bot.config import RuntimeConfig, RuntimeMode
 from freelancer_bot.ai_telemetry import AIBudgetExceeded
+from freelancer_bot.config import RuntimeConfig, RuntimeMode
 from freelancer_bot.message_prefilter import AnalyzerMessage, MinimalAnalyzerInput
 from freelancer_bot.opportunity_analysis import (
+    DEEPSEEK_CHAT_COMPLETIONS_URL,
     OPPORTUNITY_ANALYSIS_PROMPT_VERSION,
     OPPORTUNITY_ANALYSIS_SCHEMA_VERSION,
     OPPORTUNITY_ANALYZER_VERSION,
+    OpenAICompatibleOpportunityAnalyzer,
     OpenAIOpportunityAnalyzer,
     OpportunityAnalysis,
     OpportunityAnalysisCall,
@@ -27,8 +29,8 @@ from freelancer_bot.opportunity_analysis import (
     OpportunityAnalyzer,
     RoutedOpportunityAnalyzer,
     opportunity_analysis_cache_version,
+    opportunity_analysis_provider_available,
 )
-
 
 NOW = datetime(2026, 8, 9, 20, 0, tzinfo=timezone.utc)
 CONTRACT_PATH = (
@@ -366,6 +368,33 @@ class OpenAIOpportunityAnalyzerTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("temperature", gpt5._payload(_candidate()))
         self.assertEqual(compatible._payload(_candidate())["temperature"], 0.2)
 
+    async def test_openai_transport_uses_openai_endpoint_key_and_strict_schema(self):
+        captured = []
+        analyzer = OpenAIOpportunityAnalyzer(
+            api_key="openai-test-secret",
+            model="gpt-5-nano",
+            max_output_attempts=1,
+        )
+
+        def fake_urlopen(request, timeout):
+            captured.append(request)
+            return _Response(
+                _openai_response(_analysis_payload(), response_model="gpt-5-nano")
+            )
+
+        with patch(
+            "freelancer_bot.opportunity_analysis.urllib.request.urlopen",
+            fake_urlopen,
+        ):
+            await analyzer.analyze(_candidate())
+
+        request = captured[0]
+        payload = json.loads(request.data)
+        self.assertEqual(request.full_url, "https://api.openai.com/v1/chat/completions")
+        self.assertEqual(request.headers["Authorization"], "Bearer openai-test-secret")
+        self.assertEqual(payload["response_format"]["type"], "json_schema")
+        self.assertTrue(payload["response_format"]["json_schema"]["strict"])
+
     def test_missing_credentials_are_not_replaced_with_fake_provider_success(self):
         with patch.dict("os.environ", {}, clear=True):
             config = RuntimeConfig.from_env(
@@ -527,6 +556,195 @@ class OpenAIOpportunityAnalyzerTest(unittest.IsolatedAsyncioTestCase):
         ):
             with self.subTest(extraction_rule=extraction_rule):
                 self.assertIn(extraction_rule, rubric)
+
+        self.assertEqual(analyzer.provider, "openai")
+
+    async def test_deepseek_uses_json_object_and_records_real_provider(self):
+        payload = _analysis_payload()
+        payload["contact"] = {"telegram": "@foo", "email": None, "url": None}
+        recorder = _RecordingRecorder()
+        captured = []
+        analyzer = OpenAICompatibleOpportunityAnalyzer(
+            api_key="deepseek-test-secret",
+            model="deepseek-v4-flash",
+            provider="deepseek",
+            base_url=DEEPSEEK_CHAT_COMPLETIONS_URL,
+            max_output_attempts=1,
+            recorder=recorder,
+        )
+
+        def fake_urlopen(request, timeout):
+            captured.append((request, json.loads(request.data), timeout))
+            return _Response(_openai_response(payload, response_model="deepseek-v4"))
+
+        with patch(
+            "freelancer_bot.opportunity_analysis.urllib.request.urlopen",
+            fake_urlopen,
+        ):
+            call = await analyzer.analyze(
+                _candidate(current_content="Пишите https://t.me/Foo")
+            )
+
+        self.assertEqual(call.provider, "deepseek")
+        self.assertEqual(recorder.starts[0].provider, "deepseek")
+        self.assertEqual(recorder.finishes[0][1].status, "succeeded")
+        request, request_payload, timeout = captured[0]
+        self.assertEqual(request.full_url, DEEPSEEK_CHAT_COMPLETIONS_URL)
+        self.assertEqual(request.headers["Authorization"], "Bearer deepseek-test-secret")
+        self.assertEqual(timeout, 45)
+        self.assertEqual(request_payload["response_format"], {"type": "json_object"})
+        system_contract = request_payload["messages"][0]["content"]
+        self.assertIn('"schema_version"', system_contract)
+        self.assertIn('"additionalProperties": false', system_contract)
+
+    async def test_compatible_provider_errors_are_provider_aware(self):
+        analyzer = OpenAICompatibleOpportunityAnalyzer(
+            api_key="deepseek-test-secret",
+            model="deepseek-v4-flash",
+            provider="deepseek",
+            max_output_attempts=1,
+        )
+        with patch(
+            "freelancer_bot.opportunity_analysis.urllib.request.urlopen",
+            return_value=_Response(
+                _openai_response({"invalid": True}, response_model="deepseek-v4")
+            ),
+        ), self.assertRaises(OpportunityAnalysisOutputError) as raised:
+            await analyzer.analyze(_candidate())
+
+        self.assertIn("deepseek returned invalid opportunity-analysis output", str(raised.exception))
+        self.assertNotIn("OpenAI returned", str(raised.exception))
+
+    async def test_tokenrouter_config_normalizes_both_base_url_shapes(self):
+        for base_url in (
+            "https://router.example/v1",
+            "https://router.example/v1/chat/completions",
+        ):
+            with self.subTest(base_url=base_url), patch.dict(
+                "os.environ",
+                {
+                    "TOKENROUTER_API_KEY": "tokenrouter-test-secret",
+                    "TOKENROUTER_BASE_URL": base_url,
+                    "OPPORTUNITY_ANALYSIS_PROVIDER": "tokenrouter",
+                    "OPPORTUNITY_ANALYSIS_MODEL": "deepseek/deepseek-v4-pro-0813-free",
+                },
+                clear=True,
+            ):
+                config = RuntimeConfig.from_env(
+                    mode=RuntimeMode.CHECK_CONFIG,
+                    env_file=None,
+                )
+                analyzer = OpenAICompatibleOpportunityAnalyzer.from_config(config)
+
+                def fake_urlopen(request, timeout):
+                    self.assertEqual(
+                        request.full_url,
+                        "https://router.example/v1/chat/completions",
+                    )
+                    self.assertEqual(
+                        request.headers["Authorization"],
+                        "Bearer tokenrouter-test-secret",
+                    )
+                    return _Response(
+                        _openai_response(
+                            _analysis_payload(),
+                            response_model="tokenrouter-v4",
+                        )
+                    )
+
+                with patch(
+                    "freelancer_bot.opportunity_analysis.urllib.request.urlopen",
+                    fake_urlopen,
+                ):
+                    call = await analyzer.analyze(_candidate())
+
+            self.assertEqual(call.provider, "tokenrouter")
+
+    async def test_contact_grounding_accepts_safe_representational_forms_once(self):
+        payload = _analysis_payload()
+        payload["contact"] = {
+            "telegram": "@foo",
+            "email": "name@example.com",
+            "url": "https://EXAMPLE.com/",
+        }
+        requests = 0
+
+        def fake_urlopen(request, timeout):
+            nonlocal requests
+            requests += 1
+            return _Response(_openai_response(payload, response_model="fixture-model"))
+
+        analyzer = OpenAIOpportunityAnalyzer(
+            api_key="test-secret",
+            model="configured-mass-model",
+            max_output_attempts=2,
+        )
+        with patch(
+            "freelancer_bot.opportunity_analysis.urllib.request.urlopen",
+            fake_urlopen,
+        ):
+            call = await analyzer.analyze(
+                _candidate(
+                    current_content=(
+                        "Пишите https://t.me/Foo. Contact: Name@Example.COM "
+                        "https://example.com"
+                    )
+                )
+            )
+
+        self.assertEqual(call.attempt_count, 1)
+        self.assertEqual(requests, 1)
+
+    async def test_cross_provider_fallback_preserves_provider_identity(self):
+        primary_payload = _analysis_payload()
+        primary_payload["confidence"] = 0.40
+        fallback_payload = _analysis_payload()
+        fallback_payload["confidence"] = 0.92
+        responses = iter(
+            (
+                _openai_response(primary_payload, response_model="deepseek-result"),
+                _openai_response(fallback_payload, response_model="openai-result"),
+            )
+        )
+        requests = []
+
+        def fake_urlopen(request, timeout):
+            requests.append(request.full_url)
+            return _Response(next(responses))
+
+        primary = OpenAICompatibleOpportunityAnalyzer(
+            api_key="deepseek-test-secret",
+            model="deepseek-v4-flash",
+            provider="deepseek",
+            base_url=DEEPSEEK_CHAT_COMPLETIONS_URL,
+            max_output_attempts=1,
+        )
+        fallback = OpenAICompatibleOpportunityAnalyzer(
+            api_key="openai-test-secret",
+            model="gpt-5-mini",
+            provider="openai",
+            base_url="https://api.openai.example/v1/chat/completions",
+            max_output_attempts=1,
+        )
+        with patch(
+            "freelancer_bot.opportunity_analysis.urllib.request.urlopen",
+            fake_urlopen,
+        ):
+            result = await RoutedOpportunityAnalyzer(
+                primary,
+                fallback,
+                confidence_threshold=0.65,
+            ).analyze(_candidate())
+
+        self.assertEqual(result.provider, "openai")
+        self.assertEqual(result.route_reason, "low_confidence_fallback")
+        self.assertEqual(
+            requests,
+            [
+                DEEPSEEK_CHAT_COMPLETIONS_URL,
+                "https://api.openai.example/v1/chat/completions",
+            ],
+        )
 
     async def test_extracts_common_ru_and_en_budgets_and_free_text_roles(self):
         cases = (
@@ -719,6 +937,42 @@ class OpenAIOpportunityAnalyzerTest(unittest.IsolatedAsyncioTestCase):
             "fixture-routing.v2",
         )
 
+    def test_provider_availability_follows_selected_primary_and_fallback_keys(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENAI_API_KEY": "openai-test-secret",
+                "OPPORTUNITY_ANALYSIS_PROVIDER": "deepseek",
+                "DEEPSEEK_API_KEY": "deepseek-test-secret",
+                "OPPORTUNITY_ANALYSIS_FALLBACK_ENABLED": "true",
+                "OPPORTUNITY_ANALYSIS_FALLBACK_PROVIDER": "tokenrouter",
+                "TOKENROUTER_API_KEY": "tokenrouter-test-secret",
+            },
+            clear=True,
+        ):
+            config = RuntimeConfig.from_env(
+                mode=RuntimeMode.CHECK_CONFIG,
+                env_file=None,
+            )
+        self.assertTrue(opportunity_analysis_provider_available(config))
+        self.assertTrue(
+            opportunity_analysis_provider_available(config, fallback=True)
+        )
+
+        with patch.dict(
+            "os.environ",
+            {
+                "OPENAI_API_KEY": "openai-test-secret",
+                "OPPORTUNITY_ANALYSIS_PROVIDER": "deepseek",
+            },
+            clear=True,
+        ):
+            unavailable = RuntimeConfig.from_env(
+                mode=RuntimeMode.CHECK_CONFIG,
+                env_file=None,
+            )
+        self.assertFalse(opportunity_analysis_provider_available(unavailable))
+
 
 async def _run_domain_analysis(
     analyzer: OpportunityAnalyzer,
@@ -739,6 +993,19 @@ class _Response:
 
     def read(self) -> bytes:
         return self.payload.encode("utf-8")
+
+
+class _RecordingRecorder:
+    def __init__(self) -> None:
+        self.starts = []
+        self.finishes = []
+
+    async def begin(self, call):
+        self.starts.append(call)
+        return UUID("99999999-9999-9999-9999-999999999999")
+
+    async def finish(self, call_id, result):
+        self.finishes.append((call_id, result))
 
 
 def _openai_response(payload: dict, *, response_model: str) -> str:

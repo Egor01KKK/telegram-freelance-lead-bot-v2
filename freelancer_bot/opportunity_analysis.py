@@ -1,18 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import math
+import re
+import urllib.error
+import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from enum import Enum
 from hashlib import sha256
-import json
-import math
-import re
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
-import urllib.error
-import urllib.request
+from urllib.parse import urlsplit
 
 from pydantic import (
     BaseModel,
@@ -43,6 +44,9 @@ OPPORTUNITY_ANALYSIS_PROMPT_VERSION = "opportunity-analysis-prompt.v2"
 DEFAULT_OPPORTUNITY_ANALYSIS_MODEL = "gpt-5-nano"
 OPPORTUNITY_ROUTING_VERSION = "opportunity-routing.v1"
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions"
+TOKENROUTER_CHAT_COMPLETIONS_URL = "https://api.tokenrouter.com/v1/chat/completions"
+SUPPORTED_OPPORTUNITY_AI_PROVIDERS = frozenset({"openai", "deepseek", "tokenrouter"})
 _SAFE_VERSION = re.compile(r"^[a-z0-9][a-z0-9._-]{0,99}$")
 
 
@@ -63,6 +67,22 @@ class OpportunityAnalysisError(RuntimeError):
 
 class OpportunityAnalysisOutputError(OpportunityAnalysisError):
     pass
+
+
+class OpportunityAnalysisProviderConfigurationError(OpportunityAnalysisError):
+    """The selected Opportunity Analysis provider cannot be configured safely."""
+
+
+class OpportunityAnalysisProviderUnavailable(OpportunityAnalysisProviderConfigurationError):
+    """The selected provider is supported but its selected credential is absent."""
+
+
+@dataclass(frozen=True)
+class OpportunityAnalysisProviderSettings:
+    name: str
+    api_key: str
+    api_key_name: str
+    base_url: str
 
 
 class MarketDirection(str, Enum):
@@ -281,7 +301,7 @@ class OpportunityAnalyzer(Protocol):
     ) -> OpportunityAnalysisCall: ...
 
 
-class OpenAIOpportunityAnalyzer:
+class OpenAICompatibleOpportunityAnalyzer:
     def __init__(
         self,
         *,
@@ -290,7 +310,7 @@ class OpenAIOpportunityAnalyzer:
         temperature: float = 0.0,
         timeout_seconds: int = 45,
         max_output_attempts: int = 2,
-        base_url: str = OPENAI_CHAT_COMPLETIONS_URL,
+        base_url: str | None = None,
         analyzer_version: str = OPPORTUNITY_ANALYZER_VERSION,
         prompt_version: str = OPPORTUNITY_ANALYSIS_PROMPT_VERSION,
         recorder: AICallRecorder | None = None,
@@ -298,10 +318,27 @@ class OpenAIOpportunityAnalyzer:
         routing_version: str = OPPORTUNITY_ROUTING_VERSION,
         route_reason: str = "primary",
         price: AIModelPrice | None = None,
+        provider: str = "openai",
+        api_key_name: str = "OPENAI_API_KEY",
     ) -> None:
+        normalized_provider = provider.strip().lower()
+        if normalized_provider not in SUPPORTED_OPPORTUNITY_AI_PROVIDERS:
+            raise OpportunityAnalysisProviderConfigurationError(
+                f"Unsupported Opportunity Analysis provider: "
+                f"{normalized_provider or '<empty>'}",
+                retryable=False,
+                error_code="unsupported_provider",
+            )
         if not api_key.strip():
-            raise OpportunityAnalysisError("OPENAI_API_KEY is not configured")
+            raise OpportunityAnalysisProviderUnavailable(
+                f"{api_key_name} is not configured for Opportunity Analysis provider "
+                f"{normalized_provider}",
+                retryable=False,
+                error_code="provider_key_unconfigured",
+            )
         self._api_key = api_key
+        self._provider = normalized_provider
+        self._api_key_name = api_key_name
         self._model = _bounded_text(model, "model", 128)
         self._temperature = _bounded_ratio(temperature, "temperature", upper=2)
         if timeout_seconds <= 0:
@@ -310,7 +347,15 @@ class OpenAIOpportunityAnalyzer:
             raise ValueError("max_output_attempts must be between 1 and 5")
         self._timeout_seconds = timeout_seconds
         self._max_output_attempts = max_output_attempts
-        self._base_url = _bounded_text(base_url, "base_url", 2048)
+        self._base_url = _bounded_text(
+            (
+                _default_opportunity_provider_url(normalized_provider)
+                if base_url is None
+                else base_url
+            ),
+            "base_url",
+            2048,
+        )
         self._analyzer_version = _safe_version(analyzer_version, "analyzer_version")
         self._prompt_version = _safe_version(prompt_version, "prompt_version")
         self._recorder = recorder
@@ -324,27 +369,43 @@ class OpenAIOpportunityAnalyzer:
         )
 
     @classmethod
-    def from_config(cls, config: RuntimeConfig) -> OpenAIOpportunityAnalyzer:
-        if config.opportunity_analysis_provider != "openai":
-            raise OpportunityAnalysisError(
-                "OpenAI adapter requires OPPORTUNITY_ANALYSIS_PROVIDER=openai"
-            )
-        api_key = (
-            ""
-            if config.openai_api_key is None
-            else config.openai_api_key.get_secret_value()
-        )
+    def from_config(
+        cls,
+        config: RuntimeConfig,
+        *,
+        fallback: bool = False,
+        recorder: AICallRecorder | None = None,
+        stage: str | None = None,
+        route_reason: str | None = None,
+        price: AIModelPrice | None = None,
+    ) -> OpenAICompatibleOpportunityAnalyzer:
+        settings = resolve_opportunity_analysis_provider(config, fallback=fallback)
+        prefix = "opportunity_analysis.fallback" if fallback else "opportunity_analysis.primary"
         return cls(
-            api_key=api_key,
-            model=config.opportunity_analysis_model,
+            api_key=settings.api_key,
+            api_key_name=settings.api_key_name,
+            model=(
+                config.opportunity_analysis_fallback_model
+                if fallback
+                else config.opportunity_analysis_model
+            ),
             temperature=config.opportunity_analysis_temperature,
             timeout_seconds=config.opportunity_analysis_timeout_seconds,
             max_output_attempts=config.opportunity_analysis_max_output_attempts,
+            base_url=settings.base_url,
+            recorder=recorder,
+            stage=stage or prefix,
+            routing_version=config.opportunity_analysis_routing_version,
+            route_reason=route_reason or ("low_confidence" if fallback else "primary"),
+            price=price,
+            provider=settings.name,
+            analyzer_version=OPPORTUNITY_ANALYZER_VERSION,
+            prompt_version=OPPORTUNITY_ANALYSIS_PROMPT_VERSION,
         )
 
     @property
     def provider(self) -> str:
-        return "openai"
+        return self._provider
 
     @property
     def model(self) -> str:
@@ -422,7 +483,7 @@ class OpenAIOpportunityAnalyzer:
                     )
                 if attempt == self._max_output_attempts:
                     raise OpportunityAnalysisOutputError(
-                        "OpenAI returned invalid opportunity-analysis output "
+                        f"{self.provider} returned invalid opportunity-analysis output "
                         f"after {attempt} attempts"
                     ) from None
             else:
@@ -508,6 +569,17 @@ class OpenAIOpportunityAnalyzer:
                 },
             ],
         }
+        if self.provider != "openai":
+            payload["response_format"] = {"type": "json_object"}
+            payload["messages"][0]["content"] += (
+                " Return exactly one JSON object, with no markdown or prose, that "
+                "conforms to this complete schema:\n"
+                + json.dumps(
+                    OpportunityAnalysis.model_json_schema(),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
         add_sampling_parameter(
             payload,
             model=self._model,
@@ -537,7 +609,7 @@ class OpenAIOpportunityAnalyzer:
             ValidationError,
         ):
             raise OpportunityAnalysisOutputError(
-                "OpenAI returned invalid opportunity-analysis output"
+                f"{self.provider} returned invalid opportunity-analysis output"
             ) from None
         return OpportunityAnalysisCall(
             analysis=analysis,
@@ -575,7 +647,7 @@ class OpenAIOpportunityAnalyzer:
             retryable = status == 429 or status >= 500
             exc.close()
             raise OpportunityAnalysisError(
-                "OpenAI opportunity-analysis request failed",
+                f"{self.provider} opportunity-analysis request failed",
                 retryable=retryable,
                 error_code=(
                     "provider_invalid_request"
@@ -586,10 +658,105 @@ class OpenAIOpportunityAnalyzer:
             ) from None
         except urllib.error.URLError:
             raise OpportunityAnalysisError(
-                "OpenAI opportunity-analysis request failed",
+                f"{self.provider} opportunity-analysis request failed",
                 retryable=True,
                 error_code="provider_request_failed",
             ) from None
+
+
+class OpenAIOpportunityAnalyzer(OpenAICompatibleOpportunityAnalyzer):
+    """Backward-compatible name for the provider-neutral Opportunity adapter."""
+
+    @classmethod
+    def from_config(
+        cls,
+        config: RuntimeConfig,
+        **kwargs: Any,
+    ) -> OpenAIOpportunityAnalyzer:
+        if str(config.opportunity_analysis_provider).strip().lower() != "openai":
+            raise OpportunityAnalysisError(
+                "OpenAI adapter requires OPPORTUNITY_ANALYSIS_PROVIDER=openai"
+            )
+        return super().from_config(config, **kwargs)
+
+
+def resolve_opportunity_analysis_provider(
+    config: RuntimeConfig,
+    *,
+    fallback: bool = False,
+) -> OpportunityAnalysisProviderSettings:
+    provider_attribute = (
+        "opportunity_analysis_fallback_provider"
+        if fallback
+        else "opportunity_analysis_provider"
+    )
+    provider = str(getattr(config, provider_attribute, "")).strip().lower()
+    if provider not in SUPPORTED_OPPORTUNITY_AI_PROVIDERS:
+        raise OpportunityAnalysisProviderConfigurationError(
+            f"Unsupported Opportunity Analysis provider: {provider or '<empty>'}",
+            retryable=False,
+            error_code="unsupported_provider",
+        )
+
+    if provider == "openai":
+        api_key_name = "OPENAI_API_KEY"
+        base_url = OPENAI_CHAT_COMPLETIONS_URL
+        secret = getattr(config, "openai_api_key", None)
+    elif provider == "deepseek":
+        api_key_name = "DEEPSEEK_API_KEY"
+        base_url = DEEPSEEK_CHAT_COMPLETIONS_URL
+        secret = getattr(config, "deepseek_api_key", None)
+    else:
+        api_key_name = "TOKENROUTER_API_KEY"
+        base_url = _normalize_chat_completions_url(
+            str(getattr(config, "tokenrouter_base_url", ""))
+        )
+        secret = getattr(config, "tokenrouter_api_key", None)
+
+    api_key = ""
+    if secret is not None:
+        getter = getattr(secret, "get_secret_value", None)
+        api_key = str(getter() if getter is not None else secret)
+    if not api_key.strip():
+        raise OpportunityAnalysisProviderUnavailable(
+            f"{api_key_name} is not configured for Opportunity Analysis provider "
+            f"{provider}",
+            retryable=False,
+            error_code="provider_key_unconfigured",
+        )
+    return OpportunityAnalysisProviderSettings(
+        name=provider,
+        api_key=api_key,
+        api_key_name=api_key_name,
+        base_url=base_url,
+    )
+
+
+def opportunity_analysis_provider_available(
+    config: RuntimeConfig,
+    *,
+    fallback: bool = False,
+) -> bool:
+    try:
+        resolve_opportunity_analysis_provider(config, fallback=fallback)
+    except OpportunityAnalysisProviderConfigurationError:
+        return False
+    return True
+
+
+def _normalize_chat_completions_url(base_url: str) -> str:
+    normalized = base_url.strip().rstrip("/")
+    if normalized.endswith("/chat/completions"):
+        return normalized
+    return f"{normalized}/chat/completions"
+
+
+def _default_opportunity_provider_url(provider: str) -> str:
+    if provider == "openai":
+        return OPENAI_CHAT_COMPLETIONS_URL
+    if provider == "deepseek":
+        return DEEPSEEK_CHAT_COMPLETIONS_URL
+    return TOKENROUTER_CHAT_COMPLETIONS_URL
 
 
 class RoutedOpportunityAnalyzer:
@@ -759,14 +926,122 @@ def validate_opportunity_analysis_grounding(
     supplied_content = [candidate.current.content]
     if candidate.parent is not None:
         supplied_content.append(candidate.parent.content)
-    for field_name in ("telegram", "email", "url"):
+    telegram_identities = set().union(
+        *(_telegram_identities(text) for text in supplied_content)
+    )
+    email_identities = set().union(
+        *(_email_identities(text) for text in supplied_content)
+    )
+    url_identities = set().union(*(_url_identities(text) for text in supplied_content))
+    for field_name, identities in (
+        ("telegram", telegram_identities),
+        ("email", email_identities),
+        ("url", url_identities),
+    ):
         value = getattr(analysis.contact, field_name)
-        if value is not None and not any(
-            value in text for text in supplied_content
-        ):
+        if value is None:
+            continue
+        if field_name == "telegram":
+            identity = _telegram_identity(value)
+        elif field_name == "email":
+            identity = _email_identity(value)
+        else:
+            identity = _url_identity(value)
+        if identity is None or identity not in identities:
             raise OpportunityAnalysisOutputError(
                 f"Extracted {field_name} contact is not grounded in supplied context"
             )
+
+
+_TELEGRAM_USERNAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{2,31}$")
+_TELEGRAM_URL_IN_TEXT = re.compile(
+    r"(?i)(?<![\w@])(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me)/"
+    r"([A-Za-z][A-Za-z0-9_]{2,31})(?=$|[\s/?#.,!;:)\]}])"
+)
+_TELEGRAM_HANDLE_IN_TEXT = re.compile(
+    r"(?<![\w@])@([A-Za-z][A-Za-z0-9_]{2,31})\b"
+)
+_EMAIL_IN_TEXT = re.compile(
+    r"(?<![A-Za-z0-9.!#$%&'*+/=?^_`{|}~-])"
+    r"([A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+)"
+    r"(?![A-Za-z0-9.!#$%&'*+/=?^_`{|}~-])"
+)
+_URL_IN_TEXT = re.compile(r"(?i)https?://[^\s<>\"']+")
+
+
+def _telegram_identities(text: str) -> set[str]:
+    return {
+        match.casefold()
+        for match in (
+            [item.group(1) for item in _TELEGRAM_URL_IN_TEXT.finditer(text)]
+            + [item.group(1) for item in _TELEGRAM_HANDLE_IN_TEXT.finditer(text)]
+        )
+        if _TELEGRAM_USERNAME.fullmatch(match)
+    }
+
+
+def _telegram_identity(value: str) -> str | None:
+    normalized = value.strip()
+    handle = re.fullmatch(r"@([A-Za-z][A-Za-z0-9_]{2,31})", normalized)
+    if handle is not None:
+        return handle.group(1).casefold()
+    if not re.match(r"(?i)^https?://", normalized):
+        normalized = f"https://{normalized}"
+    parsed = urlsplit(normalized)
+    if parsed.scheme.casefold() not in {"http", "https"}:
+        return None
+    if parsed.hostname is None or parsed.hostname.casefold() not in {
+        "t.me",
+        "telegram.me",
+        "www.t.me",
+        "www.telegram.me",
+    }:
+        return None
+    segments = [segment for segment in parsed.path.split("/") if segment]
+    if len(segments) != 1 or not _TELEGRAM_USERNAME.fullmatch(segments[0]):
+        return None
+    return segments[0].casefold()
+
+
+def _email_identities(text: str) -> set[str]:
+    return {match.group(1).casefold() for match in _EMAIL_IN_TEXT.finditer(text)}
+
+
+def _email_identity(value: str) -> str | None:
+    match = _EMAIL_IN_TEXT.fullmatch(value.strip())
+    return None if match is None else match.group(1).casefold()
+
+
+def _url_identities(text: str) -> set[tuple[str, str, str, str, str]]:
+    identities: set[tuple[str, str, str, str, str]] = set()
+    for match in _URL_IN_TEXT.finditer(text):
+        identity = _url_identity(match.group(0))
+        if identity is not None:
+            identities.add(identity)
+    return identities
+
+
+def _url_identity(value: str) -> tuple[str, str, str, str, str] | None:
+    normalized = value.strip().rstrip(".,;:!?)]}")
+    parsed = urlsplit(normalized)
+    if parsed.scheme.casefold() not in {"http", "https"} or not parsed.netloc:
+        return None
+    try:
+        hostname = parsed.hostname
+        port = parsed.port
+    except ValueError:
+        return None
+    if hostname is None or (port is not None and not 0 <= port <= 65_535):
+        return None
+    return (
+        parsed.scheme.casefold(),
+        parsed.netloc.casefold(),
+        parsed.path or "/",
+        parsed.query,
+        parsed.fragment,
+    )
 
 
 def _bounded_text(value: Any, name: str, limit: int) -> str:

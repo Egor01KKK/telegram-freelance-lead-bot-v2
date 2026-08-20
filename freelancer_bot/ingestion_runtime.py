@@ -10,31 +10,34 @@ from uuid import uuid4
 from .ai_telemetry import AIModelPrice, AISpendGuardPolicy
 from .config import RuntimeConfig
 from .delivery import PersonalizedDeliveryJobProcessor, TelegramDeliverySender
-from .message_prefilter import (
-    OPPORTUNITY_ANALYSIS_JOB_TYPE,
-    RawMessagePrefilterProcessor,
-)
-from .matching_delivery import MATCHING_DELIVERY_JOB_TYPE, MatchingDeliveryJobProcessor
-from .opportunity_analysis import (
-    OPPORTUNITY_ANALYSIS_SCHEMA_VERSION,
-    OPPORTUNITY_ANALYZER_VERSION,
-    OpenAIOpportunityAnalyzer,
-    OpportunityAnalysisError,
-    OpportunityAnalyzer,
-    RoutedOpportunityAnalyzer,
-    opportunity_analysis_cache_version,
-)
-from .opportunity_classifier import OpportunityAnalysisJobProcessor
-from .persistence.database import Database
-from .persistence.jobs import DurableJobRepository
-from .persistence.ai_telemetry import PostgreSQLAICallRecorder
-from .persistence.raw_messages import RAW_MESSAGE_JOB_TYPE
-from .profile_rematch import PROFILE_REMATCH_JOB_TYPE, ProfileRematchJobProcessor
-from .worker import DurableWorker, WorkerOptions
 from .global_source_library_runtime import (
     DiscoveryCampaignPlanProcessor,
     ProfileCoverageRecheckProcessor,
 )
+from .matching_delivery import MATCHING_DELIVERY_JOB_TYPE, MatchingDeliveryJobProcessor
+from .message_prefilter import (
+    OPPORTUNITY_ANALYSIS_JOB_TYPE,
+    RawMessagePrefilterProcessor,
+)
+from .opportunity_analysis import (
+    OPPORTUNITY_ANALYSIS_PROMPT_VERSION,
+    OPPORTUNITY_ANALYSIS_SCHEMA_VERSION,
+    OPPORTUNITY_ANALYZER_VERSION,
+    OpenAICompatibleOpportunityAnalyzer,
+    OpportunityAnalysisError,
+    OpportunityAnalysisProviderUnavailable,
+    OpportunityAnalyzer,
+    RoutedOpportunityAnalyzer,
+    opportunity_analysis_cache_version,
+    resolve_opportunity_analysis_provider,
+)
+from .opportunity_classifier import OpportunityAnalysisJobProcessor
+from .persistence.ai_telemetry import PostgreSQLAICallRecorder
+from .persistence.database import Database
+from .persistence.jobs import DurableJobRepository
+from .persistence.raw_messages import RAW_MESSAGE_JOB_TYPE
+from .profile_rematch import PROFILE_REMATCH_JOB_TYPE, ProfileRematchJobProcessor
+from .worker import DurableWorker, WorkerOptions
 
 
 class TelegramIngestionRuntime:
@@ -192,19 +195,10 @@ def _configured_analyzer(
     database: Database,
     config: RuntimeConfig,
 ) -> OpportunityAnalyzer | None:
-    if (
-        config.openai_api_key is None
-        or not config.openai_api_key.get_secret_value().strip()
-    ):
+    try:
+        primary_settings = resolve_opportunity_analysis_provider(config)
+    except OpportunityAnalysisProviderUnavailable:
         return None
-    if config.opportunity_analysis_provider != "openai" or (
-        config.opportunity_analysis_fallback_enabled
-        and config.opportunity_analysis_fallback_provider != "openai"
-    ):
-        raise OpportunityAnalysisError(
-            "A non-OpenAI opportunity provider must be injected into the runtime"
-        )
-    key = config.openai_api_key.get_secret_value()
     spend_guard = None
     if (
         config.opportunity_analysis_daily_spend_limit_usd is not None
@@ -217,12 +211,17 @@ def _configured_analyzer(
             reserve_output_tokens=config.opportunity_analysis_budget_reserve_output_tokens,
         )
     recorder = PostgreSQLAICallRecorder(database, spend_guard=spend_guard)
-    primary = OpenAIOpportunityAnalyzer(
-        api_key=key,
+    primary = OpenAICompatibleOpportunityAnalyzer(
+        api_key=primary_settings.api_key,
+        api_key_name=primary_settings.api_key_name,
         model=config.opportunity_analysis_model,
         temperature=config.opportunity_analysis_temperature,
         timeout_seconds=config.opportunity_analysis_timeout_seconds,
         max_output_attempts=config.opportunity_analysis_max_output_attempts,
+        base_url=primary_settings.base_url,
+        provider=primary_settings.name,
+        analyzer_version=OPPORTUNITY_ANALYZER_VERSION,
+        prompt_version=OPPORTUNITY_ANALYSIS_PROMPT_VERSION,
         recorder=recorder,
         stage="opportunity_analysis.primary",
         routing_version=config.opportunity_analysis_routing_version,
@@ -235,12 +234,29 @@ def _configured_analyzer(
     )
     fallback = None
     if config.opportunity_analysis_fallback_enabled:
-        fallback = OpenAIOpportunityAnalyzer(
-            api_key=key,
+        try:
+            fallback_settings = resolve_opportunity_analysis_provider(
+                config,
+                fallback=True,
+            )
+        except OpportunityAnalysisProviderUnavailable as exc:
+            raise OpportunityAnalysisError(
+                "Configured Opportunity Analysis fallback provider is unavailable: "
+                f"{exc}",
+                retryable=False,
+                error_code="fallback_provider_unconfigured",
+            ) from None
+        fallback = OpenAICompatibleOpportunityAnalyzer(
+            api_key=fallback_settings.api_key,
+            api_key_name=fallback_settings.api_key_name,
             model=config.opportunity_analysis_fallback_model,
             temperature=config.opportunity_analysis_temperature,
             timeout_seconds=config.opportunity_analysis_timeout_seconds,
             max_output_attempts=config.opportunity_analysis_max_output_attempts,
+            base_url=fallback_settings.base_url,
+            provider=fallback_settings.name,
+            analyzer_version=OPPORTUNITY_ANALYZER_VERSION,
+            prompt_version=OPPORTUNITY_ANALYSIS_PROMPT_VERSION,
             recorder=recorder,
             stage="opportunity_analysis.fallback",
             routing_version=config.opportunity_analysis_routing_version,

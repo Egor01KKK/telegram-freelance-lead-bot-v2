@@ -8,20 +8,27 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from time import monotonic
+from unittest.mock import patch
 from uuid import UUID
 
 import sqlalchemy as sa
+from postgres_support import TEST_DATABASE_URL, migrate_to_head, temporary_database
+from pydantic import SecretStr
 
 from freelancer_bot.app import LeadBot
 from freelancer_bot.config import RuntimeConfig
 from freelancer_bot.filters import FilterConfig
-from freelancer_bot.ingestion_runtime import TelegramIngestionRuntime
+from freelancer_bot.ingestion_runtime import (
+    TelegramIngestionRuntime,
+    _configured_analyzer,
+)
 from freelancer_bot.legacy_pipeline import LegacyLeadProcessor
 from freelancer_bot.message_prefilter import (
     OPPORTUNITY_ANALYSIS_JOB_TYPE,
     RawMessagePrefilterProcessor,
 )
 from freelancer_bot.observability import Redactor, configure_structured_logger
+from freelancer_bot.opportunity_analysis import OpportunityAnalysisError
 from freelancer_bot.persistence.collector_accounts import CollectorAccountRepository
 from freelancer_bot.persistence.database import Database
 from freelancer_bot.persistence.jobs import DurableJobRepository
@@ -34,14 +41,14 @@ from freelancer_bot.persistence.raw_messages import (
 from freelancer_bot.persistence.schema import (
     durable_jobs,
     message_prefilter_results,
+    opportunities,
+    opportunity_analysis_cache,
     raw_messages,
 )
 from freelancer_bot.persistence.source_repository import SourceRepository, SourceStatus
 from freelancer_bot.storage import Storage
 from freelancer_bot.telegram_collector import TelegramCollectorSource
 from freelancer_bot.worker import DurableWorker, WorkerOptions
-from postgres_support import TEST_DATABASE_URL, migrate_to_head, temporary_database
-
 
 NOW = datetime(2026, 8, 9, 20, 0, tzinfo=timezone.utc)
 TRACE_ID = UUID("99999999-9999-9999-9999-999999999999")
@@ -130,6 +137,59 @@ class G3PipelineRuntimeTest(unittest.IsolatedAsyncioTestCase):
                 reason="G3-T05 fixture approved",
             )
         self.source = TelegramCollectorSource(source, "@g3_t05")
+
+    async def test_configured_analyzer_uses_selected_provider_and_explicit_fallback(self):
+        deepseek_config = self.config.model_copy(
+            update={
+                "opportunity_analysis_provider": "deepseek",
+                "deepseek_api_key": SecretStr("deepseek-test-secret"),
+                "opportunity_analysis_model": "deepseek-v4-flash",
+            }
+        )
+        analyzer = _configured_analyzer(self.database, deepseek_config)
+
+        self.assertIsNotNone(analyzer)
+        self.assertEqual(analyzer.provider, "deepseek")
+        self.assertEqual(analyzer.cache_identity["primary"]["provider"], "deepseek")
+
+        missing_selected_key = self.config.model_copy(
+            update={
+                "openai_api_key": SecretStr("openai-test-secret"),
+                "opportunity_analysis_provider": "deepseek",
+                "deepseek_api_key": None,
+            }
+        )
+        self.assertIsNone(_configured_analyzer(self.database, missing_selected_key))
+
+        cross_provider = self.config.model_copy(
+            update={
+                "openai_api_key": SecretStr("openai-test-secret"),
+                "deepseek_api_key": SecretStr("deepseek-test-secret"),
+                "opportunity_analysis_provider": "deepseek",
+                "opportunity_analysis_fallback_enabled": True,
+                "opportunity_analysis_fallback_provider": "openai",
+            }
+        )
+        routed = _configured_analyzer(self.database, cross_provider)
+
+        self.assertIsNotNone(routed)
+        self.assertEqual(routed.cache_identity["primary"]["provider"], "deepseek")
+        self.assertEqual(routed.cache_identity["fallback"]["provider"], "openai")
+
+        missing_fallback_key = self.config.model_copy(
+            update={
+                "deepseek_api_key": SecretStr("deepseek-test-secret"),
+                "opportunity_analysis_provider": "deepseek",
+                "opportunity_analysis_fallback_enabled": True,
+                "opportunity_analysis_fallback_provider": "openai",
+                "openai_api_key": None,
+            }
+        )
+        with self.assertRaisesRegex(
+            OpportunityAnalysisError,
+            "fallback provider is unavailable",
+        ):
+            _configured_analyzer(self.database, missing_fallback_key)
 
     async def asyncTearDown(self):
         await self.database.close()
@@ -450,6 +510,68 @@ class G3PipelineRuntimeTest(unittest.IsolatedAsyncioTestCase):
         )
         storage.close()
 
+    async def test_configured_deepseek_pipeline_persists_opportunity_and_matching_boundary(self):
+        config = self.config.model_copy(
+            update={
+                "opportunity_analysis_provider": "deepseek",
+                "deepseek_api_key": SecretStr("deepseek-test-secret"),
+                "opportunity_analysis_model": "deepseek-v4-flash",
+                "opportunity_analysis_max_output_attempts": 1,
+            }
+        )
+        storage = Storage(config.database_path)
+        delivery = RecordingDelivery()
+        bot = self._bot(storage, delivery, user_client=FakeHistoryClient([]))
+        runtime = TelegramIngestionRuntime(
+            self.database,
+            config,
+            logger=self.logger,
+            worker_id="g3-deepseek-worker",
+        )
+        response = _opportunity_provider_response()
+        requests = []
+
+        def fake_urlopen(request, timeout):
+            requests.append(request.full_url)
+            return _Response(response)
+
+        await runtime.start()
+        try:
+            with patch(
+                "freelancer_bot.opportunity_analysis.urllib.request.urlopen",
+                fake_urlopen,
+            ):
+                await bot._dispatch_message(
+                    self.source,
+                    FakeMessage(325, "Нужен Telegram-бот на Python", NOW),
+                    origin="live",
+                )
+                await self._wait_for(
+                    lambda connection: self._opportunity_boundary_ready(connection)
+                )
+        finally:
+            await runtime.stop()
+
+        async with self.database.connect() as connection:
+            opportunity_count = await connection.scalar(
+                sa.select(sa.func.count()).select_from(opportunities)
+            )
+            matching_count = await connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(durable_jobs)
+                .where(durable_jobs.c.job_type == "opportunity.matching_delivery.v1")
+            )
+            cache = (
+                await connection.execute(sa.select(opportunity_analysis_cache))
+            ).mappings().one()
+
+        self.assertEqual(requests, ["https://api.deepseek.com/chat/completions"])
+        self.assertEqual(opportunity_count, 1)
+        self.assertEqual(matching_count, 1)
+        self.assertEqual(cache["result"]["invocation"]["provider"], "deepseek")
+        self.assertEqual(delivery.calls, [])
+        storage.close()
+
     async def test_shutdown_timeout_requeues_and_restart_completes(self):
         ingested = await RawMessageIngestor(self.database).ingest(
             self._raw_input(300, "Persisted before bounded shutdown")
@@ -616,6 +738,31 @@ class G3PipelineRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
         await self._wait_for(predicate)
 
+    async def _opportunity_boundary_ready(self, connection) -> bool:
+        analysis_completed = await connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(durable_jobs)
+            .where(
+                durable_jobs.c.job_type == OPPORTUNITY_ANALYSIS_JOB_TYPE,
+                durable_jobs.c.state == "completed",
+            )
+        )
+        opportunity_count = await connection.scalar(
+            sa.select(sa.func.count()).select_from(opportunities)
+        )
+        matching_queued = await connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(durable_jobs)
+            .where(
+                durable_jobs.c.job_type == "opportunity.matching_delivery.v1",
+            )
+        )
+        return (
+            analysis_completed == 1
+            and opportunity_count == 1
+            and matching_queued == 1
+        )
+
     async def _wait_for(self, predicate) -> None:
         deadline = monotonic() + 2
         while monotonic() < deadline:
@@ -624,6 +771,69 @@ class G3PipelineRuntimeTest(unittest.IsolatedAsyncioTestCase):
                     return
             await asyncio.sleep(0.01)
         self.fail("Timed out waiting for durable pipeline state")
+
+
+class _Response:
+    def __init__(self, payload: str) -> None:
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return None
+
+    def read(self) -> bytes:
+        return self.payload.encode("utf-8")
+
+
+def _opportunity_provider_response() -> str:
+    analysis = {
+        "schema_version": "opportunity_analysis.v1",
+        "is_opportunity": True,
+        "confidence": 0.94,
+        "market_direction": "buyer_to_specialist",
+        "intent_stage": "active",
+        "opportunity_type": "project",
+        "category": "telegram_development",
+        "role_title": "Telegram bot developer",
+        "skills": ["Python", "Telegram Bot API"],
+        "task_summary": "Build a Telegram bot",
+        "budget": {
+            "known": False,
+            "min": None,
+            "max": None,
+            "currency": None,
+            "period": None,
+            "explicit": False,
+        },
+        "work": {
+            "remote": True,
+            "location": None,
+            "full_time": None,
+            "part_time": None,
+        },
+        "language": "ru",
+        "contact": {"telegram": None, "email": None, "url": None},
+        "quality": {
+            "actionability": 0.9,
+            "commercial_plausibility": 0.8,
+            "specificity": 0.8,
+            "credibility": 0.8,
+        },
+        "red_flags": [],
+    }
+    return json.dumps(
+        {
+            "model": "deepseek-v4-flash-fixture",
+            "usage": {
+                "prompt_tokens": 17,
+                "completion_tokens": 31,
+                "total_tokens": 48,
+            },
+            "choices": [{"message": {"content": json.dumps(analysis)}}],
+        }
+    )
 
 
 def _runtime_config(database_url: str, database_path: Path) -> RuntimeConfig:
