@@ -161,6 +161,98 @@ class TelegramProfileDiscoveryTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             build_telegram_profile_search_queries(self._intent(), max_queries=21)
 
+    def test_production_profile_portfolio_keeps_broad_and_buyer_recall(self):
+        profile = _persisted_profile(
+            roles=("Python Developer", "Telegram Bot Developer"),
+            skills=(
+                "Python",
+                "Telegram Bots",
+                "API integrations",
+                "Backend",
+                "Automation",
+            ),
+            categories=(
+                "Telegram bot development",
+                "Python backend",
+                "automation",
+            ),
+            languages=None,
+            semantic_text=(
+                "Я Python-разработчик и специалист по автоматизации. "
+                "Делаю Telegram-ботов и backend на Python."
+            ),
+        )
+        intent = build_profile_discovery_intent(profile)
+        first = build_telegram_profile_search_queries(intent, max_queries=20)
+        second = build_telegram_profile_search_queries(intent, max_queries=20)
+        texts = tuple(query.text.casefold() for query in first)
+
+        self.assertEqual(first, second)
+        self.assertLessEqual(len(first), 20)
+        self.assertEqual(len(texts), len(set(texts)))
+        self.assertTrue(any(query.tier == "broad" for query in first))
+        self.assertTrue(any(query.tier == "short_buyer" for query in first))
+        self.assertTrue(any(query.tier == "long_buyer" for query in first))
+        self.assertTrue(
+            any(query.tier == "broad" and query.text.casefold() == "python" for query in first)
+        )
+        self.assertTrue(
+            any(
+                query.tier == "short_buyer"
+                and "ищу" in query.text.casefold()
+                and "telegram" in query.text.casefold()
+                for query in first
+            )
+        )
+        self.assertTrue(
+            any(
+                query.tier == "short_buyer"
+                and any(
+                    marker in query.text.casefold()
+                    for marker in ("looking for", "need ", "hiring ")
+                )
+                for query in first
+            )
+        )
+        self.assertTrue(all(query.priority in {70, 80, 90} for query in first))
+        self.assertFalse(any("video editor" in text for text in texts))
+        self.assertFalse(any("copywriter" in text for text in texts))
+
+    def test_english_only_profile_keeps_english_wrappers(self):
+        intent = SimpleNamespace(
+            languages=("en",),
+            roles=("Video Editor",),
+            services=(),
+            skills=("Premiere Pro",),
+            industries=(),
+        )
+
+        queries = build_telegram_profile_search_queries(intent, max_queries=20)
+        texts = tuple(query.text.casefold() for query in queries)
+        self.assertEqual({query.language for query in queries}, {"en"})
+        self.assertIn("video editor", texts)
+        self.assertTrue(any("looking for video editor" in text for text in texts))
+        self.assertFalse(any(marker in text for text in texts for marker in ("ищу", "нужен", "требуется")))
+
+    def test_cyrillic_term_uses_russian_wrappers_only(self):
+        intent = SimpleNamespace(
+            languages=("ru", "en"),
+            roles=("Телеграм-боты",),
+            services=(),
+            skills=(),
+            industries=(),
+        )
+
+        queries = build_telegram_profile_search_queries(intent, max_queries=20)
+        matching = [
+            query for query in queries if "телеграм-боты" in query.text.casefold()
+        ]
+        self.assertTrue(matching)
+        self.assertTrue(all(query.language == "ru" for query in matching))
+        self.assertFalse(
+            any("looking for телеграм-боты" in query.text.casefold() for query in matching)
+        )
+
     def test_real_search_profile_path_drives_profile_specific_queries(self):
         fixtures = {
             "video_editor": {
@@ -356,32 +448,35 @@ class TelegramProfileDiscoveryTest(unittest.IsolatedAsyncioTestCase):
                 ),
                 name,
             )
+            buyer_markers = (
+                "нужен",
+                "нужна",
+                "ищу",
+                "ищем",
+                "кто может",
+                "требуется",
+                "vacancy",
+                "вакансия",
+                "проект",
+                "посоветуйте",
+                "looking for",
+                "who can",
+                "need",
+                "hiring",
+                "needed",
+                "recommend",
+                "contract",
+                "freelance",
+            )
+            self.assertTrue(
+                any(any(marker in text for marker in buyer_markers) for text in texts),
+                name,
+            )
             self.assertTrue(
                 all(
-                    any(
-                        marker in text
-                        for marker in (
-                            "нужен",
-                            "нужна",
-                            "ищу",
-                            "ищем",
-                            "кто может",
-                            "требуется",
-                            "vacancy",
-                            "вакансия",
-                            "проект",
-                            "посоветуйте",
-                            "looking for",
-                            "who can",
-                            "need",
-                            "hiring",
-                            "needed",
-                            "recommend",
-                            "contract",
-                            "freelance",
-                        )
-                    )
-                    for text in texts
+                    query.tier == "broad"
+                    or any(marker in query.text.casefold() for marker in buyer_markers)
+                    for query in first
                 ),
                 name,
             )
@@ -429,16 +524,14 @@ class TelegramProfileDiscoveryTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(provider.search_hits), 3)
         self.assertIn("private body", provider.search_hits[0].text)
         self.assertIn("user", {hit.source_kind for hit in provider.search_hits})
-        self.assertEqual(
-            {
-                match.family
-                for match in provider.search_hits[0].query_matches
-            },
-            {
-                "ROLE_DIRECT",
-                "SERVICE_DIRECT",
-                "SKILL_SERVICE",
-            },
+        families = {
+            match.family for match in provider.search_hits[0].query_matches
+        }
+        self.assertIn("TERM_BROAD", families)
+        self.assertTrue(
+            families.intersection(
+                {"ROLE_SHORT", "SERVICE_SHORT", "SKILL_SERVICE_SHORT"}
+            )
         )
 
     async def test_known_source_is_removed_without_resolving_entities(self):

@@ -240,10 +240,13 @@ class PrimaryChatDiscoveryRuntimeTest(unittest.IsolatedAsyncioTestCase):
 
         topic_texts = tuple(topic.topic_text for topic in topics)
         self.assertLessEqual(len(topic_texts), 20)
+        self.assertIn("Video Editor", topic_texts)
+        self.assertIn("YouTube editing", topic_texts)
         self.assertIn("looking for Video Editor", topic_texts)
         self.assertIn("looking for a specialist in YouTube editing", topic_texts)
-        self.assertNotIn("Video Editor", topic_texts)
-        self.assertNotIn("Premiere Pro", topic_texts)
+        self.assertTrue(any(topic.priority == 90 for topic in topics))
+        self.assertTrue(any(topic.priority == 80 for topic in topics))
+        self.assertTrue(any(topic.priority == 70 for topic in topics))
 
     async def test_legacy_profile_topics_keep_raw_projection(self):
         intent = SimpleNamespace(

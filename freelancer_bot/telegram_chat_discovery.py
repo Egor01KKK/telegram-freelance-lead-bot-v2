@@ -1163,7 +1163,7 @@ async def ensure_profile_derived_topics(
     """
     if use_buyer_intent_queries:
         topic_specs = tuple(
-            (query.text, query.language)
+            (query.text, query.language, query.priority)
             for query in build_telegram_profile_search_queries(intent, max_queries=20)
         )
     else:
@@ -1185,14 +1185,14 @@ async def ensure_profile_derived_topics(
             deduplicated.append(value)
         languages = tuple(getattr(intent, "languages", ()) or ()) or ("en", "ru")
         topic_specs = tuple(
-            (value, language)
+            (value, language, 60)
             for value in deduplicated[:24]
             for language in languages[:2]
         )
 
     repository = TelegramChatDiscoveryRepository()
     records: list[ChatDiscoveryTopicRecord] = []
-    for topic_text, language in topic_specs:
+    for topic_text, language, priority in topic_specs:
         records.append(
             await repository.ensure_topic(
                 connection,
@@ -1200,7 +1200,7 @@ async def ensure_profile_derived_topics(
                 language=language,
                 topic_kind="profile",
                 origin_key=f"profile-intent:{getattr(intent, 'id', 'unknown')}",
-                priority=60,
+                priority=priority,
                 refresh_interval_seconds=refresh_interval_seconds,
             )
         )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import timedelta
+from types import SimpleNamespace
 import unittest
 from uuid import UUID
 
@@ -27,6 +28,7 @@ from freelancer_bot.profile_rematch import (
     PROFILE_REMATCH_JOB_TYPE,
     profile_rematch_job_key,
 )
+from freelancer_bot.telegram_chat_discovery import TelegramChatDiscoveryService
 from freelancer_bot.telegram_onboarding import TelegramProfileOnboarding
 from freelancer_bot.telegram_profile_discovery import (
     TELEGRAM_PROFILE_DISCOVERY_JOB_TYPE,
@@ -432,6 +434,11 @@ class SearchProfileActivationIntegrationTest(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(len(topics), 20)
         self.assertEqual(len(chat_jobs), 2)
         self.assertEqual(legacy_jobs, [])
+        self.assertIn("Video Editor", {topic["topic_text"] for topic in topics})
+        self.assertIn("YouTube editing", {topic["topic_text"] for topic in topics})
+        self.assertTrue(any(topic["priority"] == 90 for topic in topics))
+        self.assertTrue(any(topic["priority"] == 80 for topic in topics))
+        self.assertTrue(any(topic["priority"] == 70 for topic in topics))
         buyer_intent_markers = (
             "looking for",
             "need",
@@ -441,25 +448,100 @@ class SearchProfileActivationIntegrationTest(unittest.IsolatedAsyncioTestCase):
             "vacancy:",
             "who can handle",
         )
-        profile_terms = (
-            "video editor",
-            "premiere pro",
-            "youtube editing",
-            "short-form video",
-        )
         self.assertTrue(
-            all(
+            any(
                 any(
                     marker in topic["topic_text"].casefold()
                     for marker in buyer_intent_markers
                 )
-                and any(
-                    term in topic["topic_text"].casefold()
-                    for term in profile_terms
-                )
                 for topic in topics
             )
         )
+
+    async def test_bounded_chat_scheduler_mixes_broad_and_short_profile_topics(self):
+        service = ProfileConfirmationService(
+            self.database,
+            telegram_chat_discovery_enabled=True,
+            telegram_chat_discovery_max_topics_per_cycle=5,
+        )
+        draft = await service.create_manual_draft(
+            platform="telegram",
+            external_user_id="chat-discovery-scheduler-profile",
+            semantic_text=(
+                "Я Python-разработчик и специалист по автоматизации. "
+                "Делаю Telegram-ботов и backend на Python."
+            ),
+            roles=("Python Developer", "Telegram Bot Developer"),
+            skills=("Python", "Telegram Bots", "API integrations", "Backend"),
+            categories=("Telegram bot development", "Python backend", "automation"),
+        )
+        confirmed = await service.confirm(
+            platform="telegram",
+            external_user_id="chat-discovery-scheduler-profile",
+            profile_id=draft.profile.id,
+            expected_revision=draft.profile.revision,
+        )
+        await service.activate(
+            platform="telegram",
+            external_user_id="chat-discovery-scheduler-profile",
+            profile_id=confirmed.profile.id,
+            expected_revision=confirmed.profile.revision,
+        )
+
+        class ReadyGovernor:
+            async def current_state(self):
+                return SimpleNamespace(
+                    status=SimpleNamespace(value="ready"),
+                    cooldown_until=None,
+                )
+
+        config = SimpleNamespace(
+            telegram_chat_discovery_refresh_interval_seconds=21_600,
+            telegram_chat_discovery_max_pending_screens=50,
+            source_audit_calls_per_day=100,
+            opportunity_analysis_backlog_threshold=500,
+            telegram_chat_discovery_screen_policy_version="test-policy",
+            telegram_chat_discovery_screen_min_sample=10,
+            telegram_chat_discovery_screen_min_useful_messages=3,
+            telegram_chat_discovery_screen_min_useful_ratio=0.12,
+            telegram_chat_discovery_screen_min_confidence=0.65,
+            telegram_chat_discovery_screen_max_seller_ratio=0.70,
+            telegram_chat_discovery_screen_max_spam_ratio=0.70,
+        )
+        discovery_service = TelegramChatDiscoveryService(
+            self.database,
+            object(),
+            config=config,
+            collector_account_id=1,
+            governor=ReadyGovernor(),
+            screen_provider=object(),
+        )
+        job_ids = await discovery_service.schedule_due_searches(max_topics=6)
+
+        async with self.database.connect() as connection:
+            job_rows = (
+                await connection.execute(
+                    sa.select(durable_jobs.c.idempotency_key).where(
+                        durable_jobs.c.id.in_(job_ids)
+                    )
+                )
+            ).mappings().all()
+            topic_ids = tuple(
+                UUID(row["idempotency_key"].split(":")[1]) for row in job_rows
+            )
+            selected_topics = (
+                await connection.execute(
+                    sa.select(telegram_chat_discovery_topics).where(
+                        telegram_chat_discovery_topics.c.id.in_(topic_ids)
+                    )
+                )
+            ).mappings().all()
+
+        self.assertEqual(len(job_ids), 6)
+        priorities = {topic["priority"] for topic in selected_topics}
+        self.assertIn(90, priorities)
+        self.assertIn(80, priorities)
+        self.assertTrue(all(priority >= 80 for priority in priorities))
 
     async def test_chat_topics_are_global_and_recent_topic_is_not_requeued(self):
         service = ProfileConfirmationService(

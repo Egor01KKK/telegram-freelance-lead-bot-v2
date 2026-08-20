@@ -43,6 +43,15 @@ MAX_RESULTS_PER_QUERY = 50
 DEFAULT_MAX_TOTAL_HITS = 600
 MAX_HIT_TEXT_LENGTH = 12000
 
+QUERY_TIER_BROAD = "broad"
+QUERY_TIER_SHORT_BUYER = "short_buyer"
+QUERY_TIER_LONG_BUYER = "long_buyer"
+PROFILE_QUERY_TIER_PRIORITIES = {
+    QUERY_TIER_BROAD: 90,
+    QUERY_TIER_SHORT_BUYER: 80,
+    QUERY_TIER_LONG_BUYER: 70,
+}
+
 
 _ROLE_QUERY_TEMPLATES: dict[str, tuple[tuple[str, str, str, str], ...]] = {
     "ru": (
@@ -178,6 +187,11 @@ _SERVICE_QUERY_TEMPLATES: dict[str, tuple[tuple[str, str, str, str], ...]] = {
     ),
 }
 
+_SHORT_BUYER_QUERY_TEMPLATES: dict[str, tuple[str, ...]] = {
+    "ru": ("ищу {term}", "нужен {term}", "требуется {term}"),
+    "en": ("looking for {term}", "need {term}", "hiring {term}"),
+}
+
 
 class TelegramGlobalSearchPageCache:
     """Deduplicate identical global-search pages within one runtime cycle.
@@ -261,6 +275,7 @@ class TelegramProfileSearchQuery:
     angle: str
     query_kind: str
     family: str = ""
+    tier: str = QUERY_TIER_LONG_BUYER
 
     def __post_init__(self) -> None:
         if not self.text.strip():
@@ -273,6 +288,12 @@ class TelegramProfileSearchQuery:
             object.__setattr__(self, "family", self.angle.upper())
         if not self.family.replace("_", "").isalnum():
             raise ValueError("Telegram profile search query family must be safe")
+        if self.tier not in PROFILE_QUERY_TIER_PRIORITIES:
+            raise ValueError("Telegram profile search query tier is not supported")
+
+    @property
+    def priority(self) -> int:
+        return PROFILE_QUERY_TIER_PRIORITIES[self.tier]
 
 
 def build_telegram_profile_search_queries(
@@ -323,6 +344,8 @@ def build_telegram_profile_search_queries(
         query_kind: str,
         template: str,
         term: str,
+        *,
+        tier: str = QUERY_TIER_LONG_BUYER,
     ) -> bool:
         text = " ".join(template.format(term=term).split())
         identity = text.casefold()
@@ -336,6 +359,7 @@ def build_telegram_profile_search_queries(
                 angle=angle,
                 query_kind=query_kind,
                 family=family,
+                tier=tier,
             )
         )
         return len(values) >= max_queries
@@ -346,21 +370,73 @@ def build_telegram_profile_search_queries(
         ("skill", skills, _SERVICE_QUERY_TEMPLATES),
     )
 
-    # Reserve one direct query per populated profile field and compatible term
-    # language so mixed profiles retain role, service and skill signals under
-    # the cap without combining Russian templates with Latin-only terms (or
-    # English templates with Cyrillic terms).
-    for group_name, terms, template_map in groups:
-        if not terms:
-            continue
-        for term in terms:
-            for language in _term_languages(term, languages):
-                family, angle, query_kind, template = template_map[language][0]
-                if group_name == "skill":
-                    family = "SKILL_SERVICE"
-                    query_kind = "skill_service_need"
-                if add_query(language, family, angle, query_kind, template, term):
-                    return tuple(values)
+    # Tier A deliberately starts with raw profile concepts.  Round-robin over
+    # the persisted fields so a bounded cycle does not spend all of its
+    # budget on one role or service family.  Keep one slot for buyer intent
+    # whenever the cap allows it.
+    # Four broad slots leave room for short buyer intent in the production
+    # five/six-topic cycle even when a profile has many persisted concepts.
+    broad_budget = min(4, max_queries - 1) if max_queries > 1 else 1
+    for term_index in range(max(len(terms) for _, terms, _ in groups)):
+        for _, terms, _ in groups:
+            if term_index >= len(terms):
+                continue
+            term = terms[term_index]
+            language = _term_languages(term, languages)[0]
+            if add_query(
+                language,
+                "TERM_BROAD",
+                "broad",
+                "source_recall",
+                "{term}",
+                term,
+                tier=QUERY_TIER_BROAD,
+            ):
+                return tuple(values)
+            if len(values) >= broad_budget:
+                break
+        if len(values) >= broad_budget:
+            break
+
+    # Tier B uses short buyer wrappers.  It is intentionally separate from
+    # the longer legacy templates below: broad Telegram search works better
+    # with compact natural queries, while the long tier remains useful as a
+    # lower-priority recall variant.
+    short_budget = min(8, max_queries - len(values))
+    short_limit = len(values) + short_budget
+    short_terms = tuple(
+        (group_name, term, language)
+        for group_name, terms, _ in groups
+        for term in terms
+        for language in _term_languages(term, languages)
+    )
+    for template_index in range(3):
+        for group_name, term, language in short_terms:
+            family = {
+                "role": "ROLE_SHORT",
+                "service": "SERVICE_SHORT",
+                "skill": "SKILL_SERVICE_SHORT",
+            }[group_name]
+            query_kind = (
+                "skill_service_need"
+                if group_name == "skill"
+                else f"{group_name}_need"
+            )
+            template = _SHORT_BUYER_QUERY_TEMPLATES[language][template_index]
+            if add_query(
+                language,
+                family,
+                "direct",
+                query_kind,
+                template,
+                term,
+                tier=QUERY_TIER_SHORT_BUYER,
+            ):
+                return tuple(values)
+            if len(values) >= short_limit:
+                break
+        if len(values) >= short_limit:
+            break
 
     template_count = max(
         len(_ROLE_QUERY_TEMPLATES[language])
@@ -386,6 +462,7 @@ def build_telegram_profile_search_queries(
                         query_kind,
                         template,
                         term,
+                        tier=QUERY_TIER_LONG_BUYER,
                     ):
                         return tuple(values)
     return tuple(values)
@@ -878,8 +955,17 @@ def _term_languages(term: str, preferred_languages: Sequence[str]) -> tuple[str,
     if has_cyrillic:
         return ("ru",)
     if has_latin:
-        return ("en",)
-    return tuple(preferred_languages)
+        preferred = tuple(
+            dict.fromkeys(
+                language
+                for language in preferred_languages
+                if language in {"ru", "en"}
+            )
+        )
+        if "ru" in preferred and "en" in preferred:
+            return ("en", "ru")
+        return preferred or ("en",)
+    return tuple(preferred_languages) or ("en", "ru")
 
 
 def _profile_terms(intent: Any, *field_names: str) -> tuple[str, ...]:
