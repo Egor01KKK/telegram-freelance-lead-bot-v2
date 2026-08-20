@@ -832,6 +832,27 @@ class RuntimeConfig(BaseSettings):
         ge=1,
         le=10_000,
     )
+    telegram_chat_discovery_screen_provider: str | None = classified_field(
+        None,
+        sensitivity=Sensitivity.PUBLIC,
+        validation_alias="TELEGRAM_CHAT_DISCOVERY_SCREEN_PROVIDER",
+        min_length=1,
+        max_length=64,
+    )
+    telegram_chat_discovery_screen_model: str | None = classified_field(
+        None,
+        sensitivity=Sensitivity.PUBLIC,
+        validation_alias="TELEGRAM_CHAT_DISCOVERY_SCREEN_MODEL",
+        min_length=1,
+        max_length=128,
+    )
+    telegram_chat_discovery_screen_timeout_seconds: int = classified_field(
+        45,
+        sensitivity=Sensitivity.INTERNAL,
+        validation_alias="TELEGRAM_CHAT_DISCOVERY_SCREEN_TIMEOUT_SECONDS",
+        ge=5,
+        le=120,
+    )
     telegram_chat_discovery_screen_retry_interval_seconds: int = classified_field(
         24 * 60 * 60,
         sensitivity=Sensitivity.INTERNAL,
@@ -956,9 +977,12 @@ class RuntimeConfig(BaseSettings):
         "opportunity_analysis_model",
         "opportunity_analysis_fallback_model",
         "onboarding_profile_model",
+        "telegram_chat_discovery_screen_model",
     )
     @classmethod
-    def validate_model_name(cls, value: str) -> str:
+    def validate_model_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         normalized = value.strip()
         if not normalized:
             raise ValueError("must not be blank")
@@ -969,9 +993,12 @@ class RuntimeConfig(BaseSettings):
         "opportunity_analysis_provider",
         "opportunity_analysis_fallback_provider",
         "onboarding_profile_provider",
+        "telegram_chat_discovery_screen_provider",
     )
     @classmethod
-    def validate_source_audit_provider(cls, value: str) -> str:
+    def validate_source_audit_provider(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         normalized = value.strip().lower()
         if not normalized or not normalized[0].isalpha() or not all(
             character.isascii() and (character.isalnum() or character in "_-")

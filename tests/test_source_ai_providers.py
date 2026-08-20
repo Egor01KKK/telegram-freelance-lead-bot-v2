@@ -37,6 +37,7 @@ from freelancer_bot.telegram_chat_discovery import (
     TelegramChatScreenError,
     TelegramChatScreenTimeout,
     _screen_messages,
+    telegram_chat_screen_provider_from_config,
 )
 
 NOW = datetime(2026, 8, 20, 12, 0, tzinfo=UTC)
@@ -116,6 +117,10 @@ def _config(
     key: str | None = "selected-key",
     tokenrouter_url: str = "https://router.example/v1",
     source_audit_enabled: bool = False,
+    screen_provider: str | None = None,
+    screen_model: str | None = None,
+    screen_timeout_seconds: int = 45,
+    screen_key: str | None = None,
 ):
     values = {
         "_env_file": None,
@@ -128,6 +133,9 @@ def _config(
         "tokenrouter_api_key": None,
         "tokenrouter_base_url": tokenrouter_url,
         "source_audit_enabled": source_audit_enabled,
+        "telegram_chat_discovery_screen_provider": screen_provider,
+        "telegram_chat_discovery_screen_model": screen_model,
+        "telegram_chat_discovery_screen_timeout_seconds": screen_timeout_seconds,
     }
     if provider == "openai":
         values["openai_api_key"] = key
@@ -135,6 +143,12 @@ def _config(
         values["deepseek_api_key"] = key
     elif provider == "tokenrouter":
         values["tokenrouter_api_key"] = key
+    if screen_provider == "openai":
+        values["openai_api_key"] = screen_key
+    elif screen_provider == "deepseek":
+        values["deepseek_api_key"] = screen_key
+    elif screen_provider == "tokenrouter":
+        values["tokenrouter_api_key"] = screen_key
     return RuntimeConfig(**values)
 
 
@@ -261,6 +275,112 @@ class SourceAIProviderPayloadTest(unittest.IsolatedAsyncioTestCase):
                     )[0]
                 )
         self.assertEqual(decisions, ["UNCLEAR", "UNCLEAR", "UNCLEAR"])
+
+    def test_screen_provider_and_model_are_independent_from_source_audit(self):
+        config = _config(
+            "tokenrouter",
+            key="tokenrouter-secret",
+            screen_provider="openai",
+            screen_model="gpt-5.4-nano",
+            screen_key="openai-secret",
+        )
+
+        screen = telegram_chat_screen_provider_from_config(config)
+        audit = source_audit_provider_from_config(config)
+
+        self.assertEqual((screen.name, screen.model), ("openai", "gpt-5.4-nano"))
+        self.assertEqual((audit.name, audit.model), ("tokenrouter", "source-stage-test-model"))
+
+    def test_unset_screen_settings_inherit_source_audit_provider_and_model(self):
+        config = _config("deepseek", key="deepseek-secret")
+
+        screen = telegram_chat_screen_provider_from_config(config)
+
+        self.assertEqual((screen.name, screen.model), ("deepseek", "source-stage-test-model"))
+
+    def test_screen_openai_without_selected_key_fails_closed(self):
+        config = _config(
+            "tokenrouter",
+            key="tokenrouter-secret",
+            screen_provider="openai",
+            screen_model="gpt-5.4-nano",
+            screen_key=None,
+        )
+
+        with self.assertRaises(SourceAIProviderUnavailable):
+            telegram_chat_screen_provider_from_config(config)
+
+    def test_tokenrouter_screen_provider_normalizes_its_base_url(self):
+        config = _config(
+            "openai",
+            key="openai-secret",
+            tokenrouter_url="https://router.example/v1/",
+            screen_provider="tokenrouter",
+            screen_model="deepseek-screen",
+            screen_key="tokenrouter-secret",
+        )
+
+        screen = telegram_chat_screen_provider_from_config(config)
+
+        self.assertEqual(
+            screen._base_url,
+            "https://router.example/v1/chat/completions",
+        )
+
+    async def test_screen_openai_override_uses_strict_json_schema(self):
+        config = _config(
+            "tokenrouter",
+            key="tokenrouter-secret",
+            screen_provider="openai",
+            screen_model="gpt-5.4-nano",
+            screen_key="openai-secret",
+        )
+        provider = telegram_chat_screen_provider_from_config(config)
+        calls = []
+
+        def fake_urlopen(request, timeout):
+            calls.append(json.loads(request.data))
+            return _Response(_screen_response())
+
+        with patch(
+            "freelancer_bot.telegram_chat_discovery.urllib.request.urlopen",
+            fake_urlopen,
+        ):
+            await provider.classify(
+                SimpleNamespace(peer_type="supergroup", display_name="Fixture"),
+                (ScreenMessage(1, NOW, "buyer demand"),),
+            )
+
+        payload = calls[0]
+        self.assertEqual(payload["response_format"]["type"], "json_schema")
+        self.assertTrue(payload["response_format"]["json_schema"]["strict"])
+
+    async def test_screen_timeout_uses_screen_timeout_not_source_audit_timeout(self):
+        config = _config(
+            "tokenrouter",
+            key="tokenrouter-secret",
+            screen_provider="openai",
+            screen_model="gpt-5.4-nano",
+            screen_timeout_seconds=17,
+            screen_key="openai-secret",
+        )
+        provider = telegram_chat_screen_provider_from_config(config)
+        calls = []
+
+        def fake_urlopen(request, timeout):
+            calls.append(timeout)
+            return _Response(_screen_response())
+
+        with patch(
+            "freelancer_bot.telegram_chat_discovery.urllib.request.urlopen",
+            fake_urlopen,
+        ):
+            await provider.classify(
+                SimpleNamespace(peer_type="supergroup", display_name="Fixture"),
+                (ScreenMessage(1, NOW, "buyer demand"),),
+            )
+
+        self.assertEqual(calls, [17])
 
     def _messages(self, count: int, *, text_size: int = 12_000):
         return tuple(

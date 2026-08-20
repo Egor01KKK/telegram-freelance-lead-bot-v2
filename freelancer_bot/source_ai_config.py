@@ -42,8 +42,16 @@ def normalize_chat_completions_url(base_url: str) -> str:
     return f"{normalized}/chat/completions"
 
 
-def resolve_source_ai_provider(config: Any) -> SourceAIProviderSettings:
-    provider = str(getattr(config, "source_audit_provider", "")).strip().lower()
+def resolve_source_ai_provider(
+    config: Any,
+    provider: str | None = None,
+) -> SourceAIProviderSettings:
+    selected_provider = (
+        provider
+        if provider is not None
+        else getattr(config, "source_audit_provider", "")
+    )
+    provider = str(selected_provider).strip().lower()
     if provider not in SUPPORTED_SOURCE_AI_PROVIDERS:
         raise UnsupportedSourceAIProvider(
             f"Unsupported source AI provider: {provider or '<empty>'}"
@@ -81,9 +89,9 @@ def resolve_source_ai_provider(config: Any) -> SourceAIProviderSettings:
     )
 
 
-def source_ai_provider_available(config: Any) -> bool:
+def source_ai_provider_available(config: Any, provider: str | None = None) -> bool:
     try:
-        resolve_source_ai_provider(config)
+        resolve_source_ai_provider(config, provider=provider)
     except SourceAIProviderConfigurationError:
         return False
     return True

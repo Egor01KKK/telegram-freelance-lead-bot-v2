@@ -57,6 +57,7 @@ from .source_ai_config import (
     UnsupportedSourceAIProvider,
     normalize_chat_completions_url,
     resolve_source_ai_provider,
+    source_ai_provider_available,
 )
 from .telegram_request_governor import TelegramRequestCategory, TelegramRequestGovernor
 from .telegram_profile_discovery import build_telegram_profile_search_queries
@@ -380,14 +381,40 @@ class OpenAITelegramChatScreenProvider(OpenAICompatibleTelegramChatScreenProvide
 def telegram_chat_screen_provider_from_config(
     config: RuntimeConfig,
 ) -> OpenAICompatibleTelegramChatScreenProvider:
-    settings: SourceAIProviderSettings = resolve_source_ai_provider(config)
+    provider = telegram_chat_screen_provider_name(config)
+    model = telegram_chat_screen_model(config)
+    settings: SourceAIProviderSettings = resolve_source_ai_provider(
+        config,
+        provider=provider,
+    )
     return OpenAICompatibleTelegramChatScreenProvider(
         api_key=settings.api_key,
-        model=config.source_audit_model,
+        model=model,
         temperature=config.source_audit_temperature,
-        timeout_seconds=config.source_audit_timeout_seconds,
+        timeout_seconds=config.telegram_chat_discovery_screen_timeout_seconds,
         base_url=settings.base_url,
         provider=settings.name,
+    )
+
+
+def telegram_chat_screen_provider_name(config: RuntimeConfig) -> str:
+    configured = getattr(config, "telegram_chat_discovery_screen_provider", None)
+    return str(
+        configured or getattr(config, "source_audit_provider", "openai")
+    ).strip().lower()
+
+
+def telegram_chat_screen_model(config: RuntimeConfig) -> str:
+    configured = getattr(config, "telegram_chat_discovery_screen_model", None)
+    return str(
+        configured or getattr(config, "source_audit_model", "gpt-5-nano")
+    ).strip()
+
+
+def telegram_chat_screen_provider_available(config: RuntimeConfig) -> bool:
+    return source_ai_provider_available(
+        config,
+        provider=telegram_chat_screen_provider_name(config),
     )
 
 

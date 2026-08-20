@@ -72,6 +72,9 @@ from .storage import Storage, StoredLead
 from .telegram_chat_discovery import (
     TelegramChatDiscoveryRuntime,
     TelegramChatDiscoveryService,
+    telegram_chat_screen_model,
+    telegram_chat_screen_provider_available,
+    telegram_chat_screen_provider_name,
 )
 from .telegram_collector import (
     ApprovedTelegramSourceAdapter,
@@ -1426,10 +1429,11 @@ class LeadBot:
             getattr(self.config, "opportunity_analysis_fallback_enabled", False)
             and opportunity_analysis_provider_available(self.config, fallback=True)
         )
-        source_provider_available = source_ai_provider_available(self.config)
+        source_audit_provider_available = source_ai_provider_available(self.config)
+        screen_provider_available = telegram_chat_screen_provider_available(self.config)
         source_audit_enabled = (
             getattr(self.config, "source_audit_enabled", False)
-            and source_provider_available
+            and source_audit_provider_available
         )
         log_event(
             LOGGER,
@@ -1465,7 +1469,15 @@ class LeadBot:
             ),
             source_audit_enabled=source_audit_enabled,
             source_audit_provider=getattr(self.config, "source_audit_provider", "unknown"),
-            chat_screen_provider_available=source_provider_available,
+            source_audit_model=getattr(self.config, "source_audit_model", "unknown"),
+            chat_screen_provider_available=screen_provider_available,
+            screen_provider=telegram_chat_screen_provider_name(self.config),
+            screen_model=telegram_chat_screen_model(self.config),
+            screen_timeout_seconds=getattr(
+                self.config,
+                "telegram_chat_discovery_screen_timeout_seconds",
+                45,
+            ),
         )
 
     async def _run_source_discovery_loop(self) -> None:

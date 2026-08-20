@@ -24,6 +24,9 @@ from .telegram_request_governor import TelegramRequestGovernor
 from .telegram_chat_discovery import (
     TelegramChatDiscoveryRuntime,
     TelegramChatDiscoveryService,
+    telegram_chat_screen_model,
+    telegram_chat_screen_provider_available,
+    telegram_chat_screen_provider_name,
 )
 from .telegram_collector import (
     ApprovedTelegramSourceAdapter,
@@ -88,7 +91,8 @@ class CollectorOnlyRuntime:
                 self.collector_account_id,
                 self.config,
             )
-            source_provider_available = source_ai_provider_available(self.config)
+            source_audit_provider_available = source_ai_provider_available(self.config)
+            screen_provider_available = telegram_chat_screen_provider_available(self.config)
             if self.config.telegram_chat_discovery_enabled:
                 self.chat_discovery_runtime = TelegramChatDiscoveryRuntime(
                     TelegramChatDiscoveryService(
@@ -113,11 +117,15 @@ class CollectorOnlyRuntime:
                 ),
                 source_audit_enabled=(
                     self.config.source_audit_enabled
-                    and source_provider_available
+                    and source_audit_provider_available
                     and not self.config.telegram_chat_discovery_enabled
                 ),
                 source_audit_provider=self.config.source_audit_provider,
-                chat_screen_provider_available=source_provider_available,
+                source_audit_model=self.config.source_audit_model,
+                chat_screen_provider_available=screen_provider_available,
+                screen_provider=telegram_chat_screen_provider_name(self.config),
+                screen_model=telegram_chat_screen_model(self.config),
+                screen_timeout_seconds=self.config.telegram_chat_discovery_screen_timeout_seconds,
             )
             return self.snapshot
         except BaseException:
